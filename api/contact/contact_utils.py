@@ -1,0 +1,145 @@
+import uuid
+
+from api.db.conn import get_con
+from langchain_core.tools import tool
+
+conn = get_con()
+
+@tool
+def remove_contact_group(groupe_contact_uuid: str, userid: str) -> str:
+    """Permet de supprimer un groupe de contact. Params : groupe_contact_uuid (uuid du groupe de contact), userid (uuid de l'utilisateur)"""
+    try:
+        cursor = conn.cursor()
+        check_before_remove_contact_group(cursor, groupe_contact_uuid, userid)
+        query = "delete from groupe_contacts_details where groupe_contact_uuid = ?"
+        cursor.execute(query, (groupe_contact_uuid,))
+        query = "delete from groupe_contacts where uuid = ?"
+        cursor.execute(query, (groupe_contact_uuid,))
+        conn.commit()
+        return "Operation réussi"
+    except Exception as ex:
+        return f"Erreur lors de la suppression du groupe : {ex}"
+
+
+def check_before_remove_contact_group(cursor, groupe_contact_uuid: str, userid: str):
+    query = "select * from groupe_contacts where uuid=? and userid=?"
+    cursor.execute(query, (groupe_contact_uuid, userid))
+    groupes = cursor.fetchall()
+    if len(groupes) == 0:
+        raise Exception("Le groupe n'existe pas ou n'appartient pas à l'utilisateur")
+
+@tool
+def remove_contact_on_groupe(groupe_contact_uuid: str, contact_uuid: str, userid: str):
+    """ Permet d'enlever une personne dans un groupe. Params: groupe_contact_uuid (uuid du groupe de contact), contact_uuid (uuid du contact à elever), userid (uuid de l'utilisateur)"""
+    try :
+        cursor = conn.cursor()
+        check_before_remove_contact_on_groupe(cursor, groupe_contact_uuid, contact_uuid, userid)
+        query = "select uuid from groupe_contacts_details where contact_uuid=? and groupe_contact_uuid=?"
+        cursor.execute(query, (contact_uuid, groupe_contact_uuid))
+        group_details = cursor.fetchone()
+        if group_details:
+            query = "delete from groupe_contacts_details where uuid=?"
+            cursor.execute(query, (group_details[0],))
+            conn.commit()
+            return f"le contact a bien été supprimé du groupe"
+        return "Le contact n'est pas associé au groupe"
+    except Exception as e:
+        return f"Erreur lors de l'enlevement du contact dans le groupe: {e}"
+
+def check_before_remove_contact_on_groupe(cursor, groupe_contact_uuid: str, contact_uuid: str, userid: str):
+    query = f"select uuid, userid, title, contact_uuid, contact_name, contact_numero, contact_email from v_contact_group where userid = ?"
+    cursor.execute(query, (userid,))
+    contacts = cursor.fetchall()
+    check_group_exist = False
+    check_group_contact_exist = False
+    for contact in contacts:
+        if contact[0] == groupe_contact_uuid:
+            check_group_exist = True
+            if contact[3] == contact_uuid:
+                check_group_contact_exist = True
+    if not check_group_exist:
+        raise Exception("Le groupe en question n'existe pas ou n'appartient pas à l'utilisateur")
+    if not check_group_contact_exist:
+        raise Exception("Ce contact n est pas associé à ce groupe")
+
+
+@tool
+def get_groupes(userid):
+    """ Permet de lister les groupes des contacts. Params: userid (uuid de l'utilisateur) """
+    query = f"select uuid, userid, title, contact_uuid, contact_name, contact_numero, contact_email from v_contact_group where userid = ?"
+    cursor = conn.cursor()
+    cursor.execute(query, (userid,))
+    contacts = cursor.fetchall()
+    contact_format = [f"{contact[0]},{contact[1]},{contact[2]},{contact[3]},{contact[4]},{contact[5]},{contact[6]}" for contact in contacts]
+    resp = "\n".join(contact_format)
+    resp = "Contact group uuid, userid, titre du groupe, contact uuid, contact name, contact numero, contact email\n" + resp
+    return resp
+
+
+@tool
+def add_contacts_to_group(group_uuid: str, contact_uuids: list) -> str:
+    """Ajoute des contacts à un groupe existant. Params: group_uuid (UUID du groupe), contact_uuids (liste d'UUIDs de contacts)."""
+    try:
+        cursor = conn.cursor()
+        # Ajouter les contacts au groupe
+        added_count = 0
+        for contact_uuid in contact_uuids:
+            detail_uuid = str(uuid.uuid4())
+            cursor.execute(
+                "INSERT INTO groupe_contacts_details (uuid, groupe_contact_uuid, contact_uuid) VALUES (?, ?, ?)",
+                (detail_uuid, group_uuid, contact_uuid))
+            added_count += 1
+        conn.commit()
+        return f"{added_count} contact(s) ajouté(s) au groupe UUID: {group_uuid}."
+    except Exception as e:
+        return f"Erreur lors de l'ajout au groupe : {str(e)}"
+
+@tool
+def create_contact_group(title: str, user_uuid: str, contact_uuids: list):
+    """Crée un groupe de contacts. Params: title (titre du groupe), user_uuid (UUID de l'utilisateur), contact_uuids (liste d'UUIDs de contacts)."""
+    try:
+        group_id = str(uuid.uuid4())
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO groupe_contacts (uuid, userid, title) VALUES (?, ?, ?)", (group_id, user_uuid, title))
+        for contact_uuid in contact_uuids:
+            detail_uuid = str(uuid.uuid4())
+            cursor.execute(
+                "INSERT INTO groupe_contacts_details (uuid, groupe_contact_uuid, contact_uuid) VALUES (?, ?, ?)",
+                (detail_uuid, group_id, contact_uuid))
+        conn.commit()
+        return f"Groupe créé ! UUID: {group_id} - Titre: {title} avec {len(contact_uuids)} contacts."
+    except Exception as e:
+        return f"Erreur lors de la création du groupe : {str(e)}"
+
+
+
+@tool
+def change_contact(contact_uuid, name, numero, email, userid):
+    """ Permet de modifier un contact pour un utilisateur. Params: contact_uuid(uuid du contact deja enregistré) ,name (nom de la personne), numero (numero de la personne), email (email de la personne), userid (uuid de l'utilisateur rattaché au contact) """
+    query = f"update contacts set name=?, numero=?, email=?, userid=? where uuid=?"
+    cursor = conn.cursor()
+    cursor.execute(query, (name, numero, email, userid, contact_uuid))
+    conn.commit()
+    return "Contact modifié avec succés"
+
+@tool
+def add_contact(name, numero, email, userid):
+    """ Permet d'enregistrer un contact pour un utilisateur. Params: name (nom de la personne), numero (numero de la personne), email (email de la personne), userid (uuid de l'utilisateur rattaché au contact) """
+    _id = str(uuid.uuid4())
+    query = f"insert into contacts(uuid, name, numero, email, userid) values (?, ?, ?, ?, ?)"
+    cursor = conn.cursor()
+    cursor.execute(query, (_id, name, numero, email, userid))
+    conn.commit()
+    return "Contact inseré avec succés"
+
+@tool
+def get_contact(userid):
+    """ Permet de lister les contacts d'un utilisateur. Params: userid (uuid de l'utilisateur) """
+    query = f"select uuid, name, numero, email, userid from contacts where userid = ?"
+    cursor = conn.cursor()
+    cursor.execute(query, (userid,))
+    contacts = cursor.fetchall()
+    contact_format = [f"{contact[0]},{contact[1]},{contact[2]},{contact[3]},{contact[4]}" for contact in contacts]
+    resp = "\n".join(contact_format)
+    resp = "uuid, name, numero, email, userid\n" + resp
+    return resp

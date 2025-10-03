@@ -1,5 +1,20 @@
+from api.db.conn import get_con
+from api.user.usermanager import list_users
 
-import api.agent.usualagent
+def get_main_instruction():
+    with open('prompt/instruction_machine.txt', 'r') as f:
+        resp = f.readlines()
+        return "".join(resp)
+
+def chose_user():
+    conn = get_con()
+    users = list_users(conn)
+    message = f"Choisissez parmis les utilisateurs : "
+    message = message + "\n0 - nouveau"
+    for i in range(len(users)):
+        message = message + f"\n{str(i+1)} - {users[i]}"
+    return message, users
+
 def format_time_h_m_s(seconds):
     s = seconds
     m = 0
