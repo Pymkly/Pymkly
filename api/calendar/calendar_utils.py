@@ -1,33 +1,59 @@
+import json
 import os.path
+
+from fastapi import HTTPException
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import InstalledAppFlow, Flow
 from googleapiclient.discovery import build
 from langchain_core.tools import tool
 import re
 
+from api.db.conn import get_con
+
 SCOPES = ['https://www.googleapis.com/auth/calendar']
+CREDENTIALS_FILE = "credentials.json"
 
 # Fonction pour authentifier et obtenir le service Calendar
-def get_calendar_service():
-    creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+def get_calendar_service(user_id: str):
+    conn = get_con()
+    cursor = conn.cursor()
+    cursor.execute("SELECT refresh_token FROM user_credentials WHERE user_uuid = ?", (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    if not result:
+        raise HTTPException(status_code=401, detail="Utilisateur non authentifié ou token manquant")
+    with open(CREDENTIALS_FILE, 'r') as f:
+        creds_info = json.load(f)
+        client_id = creds_info["web"]["client_id"]
+        client_secret = creds_info["web"]["client_secret"]
+    print("***INFO***")
+    print(result)
+    print(client_id)
+    print(client_secret)
+    print("***Fin INFO***")
+    refresh_token = result[0]
+    creds_data = {
+        "refresh_token": refresh_token,
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scopes": SCOPES
+    }
+
+    creds = Credentials.from_authorized_user_info(creds_data, SCOPES)
     if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
+        creds.refresh(Request())
+
     return build('calendar', 'v3', credentials=creds)
 
 
 # Tool pour ajouter un invité
 @tool
-def add_attendee(event_id: str, emails: list= None) -> str:
-    """Ajoute un invité à un événement Google Calendar. Params: event_id (ID de l'événement), emails (emails des invités)."""
+def add_attendee(event_id: str, emails: list= None, user_id: str = None) -> str:
+    """Ajoute un invité à un événement Google Calendar. Params: event_id (ID de l'événement), user_id (ID de l'utilisateur)."""
+    if not user_id:
+        return "Erreur : user_id manquant."
     try:
         if emails:
             # Valider l'email
@@ -35,7 +61,7 @@ def add_attendee(event_id: str, emails: list= None) -> str:
                 if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
                     return f"Erreur : email '{email}' n'est pas valide."
 
-            service = get_calendar_service()
+            service = get_calendar_service(user_id)
             # Récupérer l'événement existant
             event = service.events().get(calendarId='primary', eventId=event_id).execute()
             # Ajouter l'invité
@@ -57,8 +83,10 @@ def add_attendee(event_id: str, emails: list= None) -> str:
 
 # Tool pour retirer un invité
 @tool
-def remove_attendee(event_id: str, emails: list = None) -> str:
-    """Retire un invité d'un événement Google Calendar. Params: event_id (ID de l'événement), emails (emails des invités)."""
+def remove_attendee(event_id: str, emails: list = None, user_id: str = None) -> str:
+    """Retire un invité d'un événement Google Calendar. Params: event_id (ID de l'événement), emails (emails des invités), user_id (ID de l'utilisateur)."""
+    if not user_id:
+        return "Erreur : user_id manquant."
     try:
         if emails :
             # Valider l'email
@@ -66,7 +94,7 @@ def remove_attendee(event_id: str, emails: list = None) -> str:
                 if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
                     return f"Erreur : email '{email}' n'est pas valide."
 
-            service = get_calendar_service()
+            service = get_calendar_service(user_id)
             # Récupérer l'événement existant
             event = service.events().get(calendarId='primary', eventId=event_id).execute()
             # Retirer l'invité
@@ -87,10 +115,12 @@ def remove_attendee(event_id: str, emails: list = None) -> str:
         return f"Erreur lors du retrait de l'invité : {str(e)}"
 
 @tool
-def delete_calendar_event(event_id: str) -> str:
-    """Supprime un événement Google Calendar. Param: event_id (ID de l'événement)."""
+def delete_calendar_event(event_id: str, user_id: str = None) -> str:
+    """Supprime un événement Google Calendar. Param: event_id (ID de l'événement), user_id (ID de l'utilisateur)."""
+    if not user_id:
+        return "Erreur : user_id manquant."
     try:
-        service = get_calendar_service()
+        service = get_calendar_service(user_id)
         # Vérifier si l'événement existe
         event = service.events().get(calendarId='primary', eventId=event_id).execute()
         summary = event.get('summary', 'Sans titre')
@@ -101,8 +131,10 @@ def delete_calendar_event(event_id: str) -> str:
         return f"Erreur lors de la suppression : {str(e)}"
 
 @tool
-def shift_calendar_event(event_id: str, new_start_time: str, new_end_time: str) -> str:
-    """Déplace un événement Google Calendar à de nouvelles dates/heures. Params: event_id (ID de l'événement), new_start_time/new_end_time (ISO format ex: '2025-10-01T14:00:00+03:00')."""
+def shift_calendar_event(event_id: str, new_start_time: str, new_end_time: str, user_id: str = None) -> str:
+    """Déplace un événement Google Calendar à de nouvelles dates/heures. Params: event_id (ID de l'événement), new_start_time/new_end_time (ISO format ex: '2025-10-01T14:00:00+03:00'), user_id (ID de l'utilisateur)."""
+    if not user_id:
+        return "Erreur : user_id manquant."
     try:
         # Valider le format ISO
         if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$', new_start_time):
@@ -110,7 +142,7 @@ def shift_calendar_event(event_id: str, new_start_time: str, new_end_time: str) 
         if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$', new_end_time):
             return f"Erreur : new_end_time '{new_end_time}' n'est pas au format ISO valide (ex: '2025-10-01T15:00:00+03:00')."
 
-        service = get_calendar_service()
+        service = get_calendar_service(user_id)
         # Récupérer l'événement existant
         event = service.events().get(calendarId='primary', eventId=event_id).execute()
         # Mettre à jour les horaires
@@ -126,8 +158,10 @@ def shift_calendar_event(event_id: str, new_start_time: str, new_end_time: str) 
 
 # Tool pour lister les événements
 @tool
-def list_calendar_events(start_date: str, end_date: str) -> str:
-    """Liste les événements Google Calendar entre start_date et end_date (ISO format ex: '2025-10-01T00:00:00+03:00'). . Retourne l'ID, le titre, la date et les invités de chaque événement."""
+def list_calendar_events(start_date: str, end_date: str, user_id: str = None) -> str:
+    """Liste les événements Google Calendar entre start_date et end_date (ISO format ex: '2025-10-01T00:00:00+03:00'). . Retourne l'ID, le titre, la date et les invités de chaque événement, user_id (ID de l'utilisateur)."""
+    if not user_id:
+        return "Erreur : user_id manquant."
     try:
         # Valider le format ISO
         if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$', start_date):
@@ -135,7 +169,7 @@ def list_calendar_events(start_date: str, end_date: str) -> str:
         if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$', end_date):
             return f"Erreur : end_date '{end_date}' n'est pas au format ISO valide (ex: '2025-10-01T23:59:59+03:00')."
 
-        service = get_calendar_service()
+        service = get_calendar_service(user_id)
         events_result = service.events().list(
             calendarId='primary',
             timeMin=start_date,
@@ -161,15 +195,17 @@ def list_calendar_events(start_date: str, end_date: str) -> str:
 
 # Tool LangChain pour créer un événement (DeepSeek peut l'appeler)
 @tool
-def create_calendar_event(summary: str, start_time: str, end_time: str, description: str = "", attendees: list = None) -> str:
-    """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel)."""
+def create_calendar_event(summary: str, start_time: str, end_time: str, description: str = "", attendees: list = None, user_id: str = None) -> str:
+    """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel), user_id (ID de l'utilisateur)."""
+    if not user_id:
+        return "Erreur : user_id manquant."
     try:
-        service = get_calendar_service()
+        service = get_calendar_service(user_id)
         event = {
             'summary': summary,
             'description': description,
-            'start': {'dateTime': start_time, 'timeZone': 'Europe/Paris'},  # Ajuste le timezone
-            'end': {'dateTime': end_time, 'timeZone': 'Europe/Paris'},
+            'start': {'dateTime': start_time, 'timeZone': 'Indian/Antananarivo'},  # Ajuste le timezone
+            'end': {'dateTime': end_time, 'timeZone': 'Indian/Antananarivo'},
         }
         if attendees:
             event['attendees'] = [{'email': email} for email in attendees]

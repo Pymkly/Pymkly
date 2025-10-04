@@ -2,6 +2,28 @@ create table users (
     uuid text primary key
 );
 
+-- Via sqlite3 /path/to/chat_history.db
+PRAGMA foreign_keys = OFF;
+BEGIN TRANSACTION;
+ALTER TABLE users RENAME TO users_old;
+CREATE TABLE users (
+    uuid TEXT PRIMARY KEY,
+    nom_complet TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    mot_de_passe TEXT NOT NULL
+);
+INSERT INTO users (uuid, nom_complet, email, mot_de_passe)
+SELECT uuid, '', '', '' FROM users_old;  -- Migrer les anciens UUIDs avec des valeurs par défaut
+DROP TABLE users_old;
+COMMIT;
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS user_credentials (
+    uuid TEXT PRIMARY KEY,
+    user_uuid TEXT,
+    refresh_token TEXT,
+    FOREIGN KEY (user_uuid) REFERENCES users(uuid) ON DELETE CASCADE
+);
 create table contacts (
     uuid text primary key,
     name text,
@@ -22,7 +44,7 @@ create table groupe_contacts_details (
     uuid text primary key ,
     groupe_contact_uuid text,
     contact_uuid text,
-    foreign key (contact_uuid) references contacts(uuid),
+    foreign key (contact_uuid) references contacts(uuid) on delete cascade ,
     foreign key (groupe_contact_uuid) references groupe_contacts(uuid) on delete cascade
 );
 
