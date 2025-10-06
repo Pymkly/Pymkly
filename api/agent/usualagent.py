@@ -62,7 +62,7 @@ app = workflow.compile(checkpointer=memory)
 instruction = get_main_instruction()
 
 
-def answer(text, thread_id=None):
+def answer(text, thread_id=None, user_uuid=None):
     # Premier message
     if thread_id is None:
         thread_id = uuid.uuid4()
@@ -70,7 +70,7 @@ def answer(text, thread_id=None):
     checkpoint = memory.get(config)
     current_messages = checkpoint["channel_values"]["messages"] if checkpoint and "messages" in checkpoint[
         "channel_values"] else []
-    _instru = instruction + f"\nL'uuid de l'utilisateur est {str(thread_id)}, utilise cette uuid pour les fonctions qui ont besoin de l'uuid ou id de l'utilisateur."
+    _instru = instruction + f"\nL'uuid de l'utilisateur est {str(user_uuid)}, utilise cette uuid pour les fonctions qui ont besoin de l'uuid ou id de l'utilisateur."
     input_message = [
         HumanMessage(content=_instru),
         HumanMessage(content=text)

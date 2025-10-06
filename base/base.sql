@@ -62,3 +62,24 @@ select gc.uuid,
     left join contacts c on gcd.contact_uuid = c.uuid;
 
 select * from v_contact_group;
+
+CREATE TABLE IF NOT EXISTS threads (
+    id TEXT PRIMARY KEY,
+    user_uuid TEXT NOT NULL,
+    label TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_uuid) REFERENCES users(uuid)
+);
+
+CREATE TABLE IF NOT EXISTS discussion_messages (
+            id TEXT PRIMARY KEY,
+            thread_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE
+        );
+
+select * , u.nom_complet
+from threads
+left join users u on threads.user_uuid = u.uuid;
