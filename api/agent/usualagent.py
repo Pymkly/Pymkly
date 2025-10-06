@@ -62,14 +62,19 @@ app = workflow.compile(checkpointer=memory)
 instruction = get_main_instruction()
 
 
+def get_last_messages(config):
+    checkpoint = memory.get(config)
+    current_messages = checkpoint["channel_values"]["messages"] if checkpoint and "messages" in checkpoint[
+        "channel_values"] else []
+    current_messages = current_messages[-20:] if len(current_messages) > 20 else current_messages
+    return current_messages
+
 def answer(text, thread_id=None, user_uuid=None):
     # Premier message
     if thread_id is None:
         thread_id = uuid.uuid4()
     config = {"configurable": {"thread_id": thread_id}}
-    checkpoint = memory.get(config)
-    current_messages = checkpoint["channel_values"]["messages"] if checkpoint and "messages" in checkpoint[
-        "channel_values"] else []
+    current_messages = get_last_messages(config)
     _instru = instruction + f"\nL'uuid de l'utilisateur est {str(user_uuid)}, utilise cette uuid pour les fonctions qui ont besoin de l'uuid ou id de l'utilisateur."
     input_message = [
         HumanMessage(content=_instru),
