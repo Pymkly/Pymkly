@@ -12,17 +12,16 @@ from fastapi.security import OAuth2PasswordRequestForm
 from google_auth_oauthlib.flow import Flow
 from jose import jwt, JWTError
 from pydantic import BaseModel
-from sqlalchemy import false
-
+from config import config
 from api.agent.usualagent import answer
 from api.calendar.calendar_utils import CREDENTIALS_FILE, SCOPES
 from api.db.conn import get_con
-from api.user.usermanager import insert_user
 
 logging.basicConfig(level=logging.INFO)
 SECRET_KEY = "1terces3_repus2"
 ALGORITHM = "HS256"
-FRONTEND_URL = "http://localhost:5173"
+FRONTEND_URL = config["FRONTEND_URL"]
+BACKEND_URL = config["BACKEND_URL"]
 ACCESS_TOKEN_EXPIRE_MINUTES = 3600*7
 logger = logging.getLogger(__name__)
 app = FastAPI(title="H", description="API pour ton assistant personnel", version="1.0")
@@ -97,6 +96,7 @@ async def register(user: UserCreate):
         (uuid, user.nom_complet, user.email, hashed_password)
     )
     db.commit()
+    next_step = f"/auth/google?user_uuid={uuid}&prompt=connect_google" if not has_google_auth(uuid, db) else None
     db.close()
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token({"sub": user.email, "uuid": uuid}, access_token_expires)
@@ -106,7 +106,7 @@ async def register(user: UserCreate):
         "uuid": uuid,
         "access_token": access_token,
         "token_type": "bearer",
-        "next_step": f"/auth/google?user_uuid={uuid}&prompt=connect_google" if not has_google_auth(uuid, db) else None
+        "next_step": next_step
     }
 
 @app.post("/login")
@@ -142,7 +142,7 @@ async def auth_google(user_uuid: str = Query(...)):
     flow = Flow.from_client_secrets_file(
         CREDENTIALS_FILE,
         scopes=SCOPES,
-        redirect_uri="http://localhost:8000/auth/callback"  # Remplace par ton IP
+        redirect_uri=f"{BACKEND_URL}/auth/callback"  # Remplace par ton IP
     )
     authorization_url, state = flow.authorization_url(
         access_type="offline",
@@ -159,7 +159,7 @@ async def auth_callback(code: str = Query(...), state: str = Query(...)):
     flow = Flow.from_client_secrets_file(
         CREDENTIALS_FILE,
         scopes=SCOPES,
-        redirect_uri="http://localhost:8000/auth/callback"  # Remplace par ton IP
+        redirect_uri=f"{BACKEND_URL}/auth/callback"  # Remplace par ton IP
     )
     flow.fetch_token(code=code)
     credentials = flow.credentials
