@@ -48,7 +48,7 @@ create table groupe_contacts_details (
     foreign key (groupe_contact_uuid) references groupe_contacts(uuid) on delete cascade
 );
 
-drop view v_contact_group;
+
 create  view v_contact_group as
 select gc.uuid,
        gc.userid,
