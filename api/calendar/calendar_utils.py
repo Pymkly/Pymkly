@@ -51,7 +51,7 @@ def get_calendar_service(user_id: str):
 # Tool pour ajouter un invité
 @tool
 def add_attendee(event_id: str, emails: list= None, user_id: str = None) -> str:
-    """Ajoute un invité à un événement Google Calendar. Params: event_id (ID de l'événement), user_id (ID de l'utilisateur)."""
+    """Ajoute un invité à un événement Google Calendar. Params: event_id (ID de l'événement), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
         return "Erreur : user_id manquant."
     try:
@@ -84,7 +84,7 @@ def add_attendee(event_id: str, emails: list= None, user_id: str = None) -> str:
 # Tool pour retirer un invité
 @tool
 def remove_attendee(event_id: str, emails: list = None, user_id: str = None) -> str:
-    """Retire un invité d'un événement Google Calendar. Params: event_id (ID de l'événement), emails (emails des invités), user_id (ID de l'utilisateur)."""
+    """Retire un invité d'un événement Google Calendar. Params: event_id (ID de l'événement), emails (emails des invités), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
         return "Erreur : user_id manquant."
     try:
@@ -116,7 +116,7 @@ def remove_attendee(event_id: str, emails: list = None, user_id: str = None) -> 
 
 @tool
 def delete_calendar_event(event_id: str, user_id: str = None) -> str:
-    """Supprime un événement Google Calendar. Param: event_id (ID de l'événement), user_id (ID de l'utilisateur)."""
+    """Supprime un événement Google Calendar. Param: event_id (ID de l'événement), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
         return "Erreur : user_id manquant."
     try:
@@ -132,7 +132,7 @@ def delete_calendar_event(event_id: str, user_id: str = None) -> str:
 
 @tool
 def shift_calendar_event(event_id: str, new_start_time: str, new_end_time: str, time_zone: str, user_id: str = None) -> str:
-    """Déplace un événement Google Calendar à de nouvelles dates/heures. Params: event_id (ID de l'événement), new_start_time/new_end_time (ISO format ex: '2025-10-01T14:00:00+03:00'), time_zone (time zone de l'utilisateur), user_id (ID de l'utilisateur)."""
+    """Déplace un événement Google Calendar à de nouvelles dates/heures. Params: event_id (ID de l'événement), new_start_time/new_end_time (ISO format ex: '2025-10-01T14:00:00+03:00'), time_zone (time zone de l'utilisateur), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
         return "Erreur : user_id manquant."
     try:
@@ -159,7 +159,7 @@ def shift_calendar_event(event_id: str, new_start_time: str, new_end_time: str, 
 # Tool pour lister les événements
 @tool
 def list_calendar_events(start_date: str, end_date: str, user_id: str = None) -> str:
-    """Liste les événements Google Calendar entre start_date et end_date (ISO format ex: '2025-10-01T00:00:00+03:00'). . Retourne l'ID, le titre, la date et les invités de chaque événement, user_id (ID de l'utilisateur)."""
+    """Liste les événements Google Calendar entre start_date et end_date (ISO format ex: '2025-10-01T00:00:00+03:00'). . Retourne l'ID, le titre, la date et les invités de chaque événement, user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
         return "Erreur : user_id manquant."
     try:
@@ -196,7 +196,7 @@ def list_calendar_events(start_date: str, end_date: str, user_id: str = None) ->
 # Tool LangChain pour créer un événement (DeepSeek peut l'appeler)
 @tool
 def create_calendar_event(summary: str, start_time: str, end_time: str, description: str = "", attendees: list = None, time_zone: str = "Indian/Antananarivo", user_id: str = None) -> str:
-    """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel), time_zone (time zone de l'utilisateur), user_id (ID de l'utilisateur)."""
+    """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel), time_zone (time zone de l'utilisateur), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
         return "Erreur : user_id manquant."
     try:

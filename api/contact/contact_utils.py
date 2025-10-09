@@ -7,7 +7,7 @@ conn = get_con()
 
 @tool
 def remove_contact_group(groupe_contact_uuid: str, userid: str) -> str:
-    """Permet de supprimer un groupe de contact. Params : groupe_contact_uuid (uuid du groupe de contact), userid (uuid de l'utilisateur)"""
+    """Permet de supprimer un groupe de contact. Params : groupe_contact_uuid (uuid du groupe de contact), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     try:
         cursor = conn.cursor()
         check_before_remove_contact_group(cursor, groupe_contact_uuid, userid)
@@ -30,7 +30,7 @@ def check_before_remove_contact_group(cursor, groupe_contact_uuid: str, userid: 
 
 @tool
 def remove_contact_on_groupe(groupe_contact_uuid: str, contact_uuid: str, userid: str):
-    """ Permet d'enlever une personne dans un groupe. Params: groupe_contact_uuid (uuid du groupe de contact), contact_uuid (uuid du contact à elever), userid (uuid de l'utilisateur)"""
+    """ Permet d'enlever une personne dans un groupe. Params: groupe_contact_uuid (uuid du groupe de contact), contact_uuid (uuid du contact à elever), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     try :
         cursor = conn.cursor()
         check_before_remove_contact_on_groupe(cursor, groupe_contact_uuid, contact_uuid, userid)
@@ -45,6 +45,8 @@ def remove_contact_on_groupe(groupe_contact_uuid: str, contact_uuid: str, userid
         return "Le contact n'est pas associé au groupe"
     except Exception as e:
         return f"Erreur lors de l'enlevement du contact dans le groupe: {e}"
+
+
 
 def check_before_remove_contact_on_groupe(cursor, groupe_contact_uuid: str, contact_uuid: str, userid: str):
     query = f"select uuid, userid, title, contact_uuid, contact_name, contact_numero, contact_email from v_contact_group where userid = ?"
@@ -65,7 +67,7 @@ def check_before_remove_contact_on_groupe(cursor, groupe_contact_uuid: str, cont
 
 @tool
 def get_groupes(userid):
-    """ Permet de lister les groupes des contacts. Params: userid (uuid de l'utilisateur) """
+    """ Permet de lister les groupes des contacts. Params: user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     query = f"select uuid, userid, title, contact_uuid, contact_name, contact_numero, contact_email from v_contact_group where userid = ?"
     cursor = conn.cursor()
     cursor.execute(query, (userid,))
@@ -77,14 +79,15 @@ def get_groupes(userid):
 
 
 @tool
-def add_contacts_to_group(group_uuid: str, contact_uuids: list) -> str:
-    """Ajoute des contacts à un groupe existant. Params: group_uuid (UUID du groupe), contact_uuids (liste d'UUIDs de contacts)."""
+def add_contacts_to_group(group_uuid: str, contact_uuids: list, userid: str) -> str:
+    """Ajoute des contacts à un groupe existant. Params: group_uuid (UUID du groupe), contact_uuids (liste d'UUIDs de contacts), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     try:
         cursor = conn.cursor()
         # Ajouter les contacts au groupe
         added_count = 0
         for contact_uuid in contact_uuids:
             detail_uuid = str(uuid.uuid4())
+            check_before_remove_contact_on_groupe(cursor, group_uuid, detail_uuid, userid)
             cursor.execute(
                 "INSERT INTO groupe_contacts_details (uuid, groupe_contact_uuid, contact_uuid) VALUES (?, ?, ?)",
                 (detail_uuid, group_uuid, contact_uuid))
@@ -96,7 +99,7 @@ def add_contacts_to_group(group_uuid: str, contact_uuids: list) -> str:
 
 @tool
 def create_contact_group(title: str, user_uuid: str, contact_uuids: list):
-    """Crée un groupe de contacts. Params: title (titre du groupe), user_uuid (UUID de l'utilisateur), contact_uuids (liste d'UUIDs de contacts)."""
+    """Crée un groupe de contacts. Params: title (titre du groupe), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne ), contact_uuids (liste d'UUIDs de contacts)."""
     try:
         group_id = str(uuid.uuid4())
         cursor = conn.cursor()
