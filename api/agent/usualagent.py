@@ -69,13 +69,14 @@ def get_last_messages(config):
     current_messages = current_messages[-20:] if len(current_messages) > 20 else current_messages
     return current_messages
 
-def answer(text, thread_id=None, user_uuid=None):
+def answer(text, thread_id=None, user_uuid=None, clientTime="", timeZone = ""):
     # Premier message
     if thread_id is None:
         thread_id = uuid.uuid4()
     config = {"configurable": {"thread_id": thread_id}}
     current_messages = get_last_messages(config)
     _instru = instruction + f"\nL'uuid de l'utilisateur est {str(user_uuid)}, utilise cette uuid pour les fonctions qui ont besoin de l'uuid ou id de l'utilisateur."
+    _instru = _instru + f"\nL'utilisateur envoie ce message à la date {str(clientTime)}, son time zone est {str(timeZone)}"
     input_message = [
         HumanMessage(content=_instru),
         HumanMessage(content=text)

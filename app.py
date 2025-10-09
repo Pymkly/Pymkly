@@ -44,6 +44,8 @@ class Token(BaseModel):
 class AnswerRequest(BaseModel):
     text: str
     thread_id: str = None
+    clientTime : str
+    timeZone: str
 
 class ThreadCreate(BaseModel):
     label: str
@@ -191,7 +193,7 @@ def get_answer(request: AnswerRequest = Body(...), current_user: str = Depends(g
         user = request.thread_id
         print(user)
         logger.info(f"Requête reçue : text='{request.text}', thread_id={user}")
-        user, result = answer(request.text, user, current_user)
+        user, result = answer(request.text, user, current_user, request.clientTime, request.timeZone)
         logger.info("Réponse générée avec succès")
         db = get_con()
         cursor = db.cursor()
