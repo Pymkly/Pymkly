@@ -75,8 +75,8 @@ def answer(text, thread_id=None, user_uuid=None, clientTime="", timeZone = ""):
         thread_id = uuid.uuid4()
     config = {"configurable": {"thread_id": thread_id}}
     current_messages = get_last_messages(config)
-    _instru = instruction + f"\nL'uuid de l'utilisateur est {str(user_uuid)}, utilise cette uuid pour les fonctions qui ont besoin de l'uuid ou id de l'utilisateur."
-    _instru = _instru + f"\nL'utilisateur envoie ce message à la date {str(clientTime)}, son time zone est {str(timeZone)}"
+    _instru = instruction + f"\n Utilise l'uuid {str(user_uuid)} pour les fonctions nécessitant un ID utilisateur."
+    _instru = _instru + f"\nBase-toi sur la date {str(clientTime)} et le fuseau {str(timeZone)} pour les calculs temporels."
     input_message = [
         HumanMessage(content=_instru),
         HumanMessage(content=text)

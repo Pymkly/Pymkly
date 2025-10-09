@@ -131,8 +131,8 @@ def delete_calendar_event(event_id: str, user_id: str = None) -> str:
         return f"Erreur lors de la suppression : {str(e)}"
 
 @tool
-def shift_calendar_event(event_id: str, new_start_time: str, new_end_time: str, user_id: str = None) -> str:
-    """Déplace un événement Google Calendar à de nouvelles dates/heures. Params: event_id (ID de l'événement), new_start_time/new_end_time (ISO format ex: '2025-10-01T14:00:00+03:00'), user_id (ID de l'utilisateur)."""
+def shift_calendar_event(event_id: str, new_start_time: str, new_end_time: str, time_zone: str, user_id: str = None) -> str:
+    """Déplace un événement Google Calendar à de nouvelles dates/heures. Params: event_id (ID de l'événement), new_start_time/new_end_time (ISO format ex: '2025-10-01T14:00:00+03:00'), time_zone (time zone de l'utilisateur), user_id (ID de l'utilisateur)."""
     if not user_id:
         return "Erreur : user_id manquant."
     try:
@@ -148,8 +148,8 @@ def shift_calendar_event(event_id: str, new_start_time: str, new_end_time: str, 
         # Mettre à jour les horaires
         event['start']['dateTime'] = new_start_time
         event['end']['dateTime'] = new_end_time
-        event['start']['timeZone'] = 'Indian/Antananarivo'
-        event['end']['timeZone'] = 'Indian/Antananarivo'
+        event['start']['timeZone'] = time_zone
+        event['end']['timeZone'] = time_zone
         # Mettre à jour l'événement
         updated_event = service.events().update(calendarId='primary', eventId=event_id, body=event).execute()
         return f"Événement décalé ! ID: {event_id} - {updated_event.get('summary', 'Sans titre')} de {new_start_time} à {new_end_time}"
@@ -195,8 +195,8 @@ def list_calendar_events(start_date: str, end_date: str, user_id: str = None) ->
 
 # Tool LangChain pour créer un événement (DeepSeek peut l'appeler)
 @tool
-def create_calendar_event(summary: str, start_time: str, end_time: str, description: str = "", attendees: list = None, user_id: str = None) -> str:
-    """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel), user_id (ID de l'utilisateur)."""
+def create_calendar_event(summary: str, start_time: str, end_time: str, description: str = "", attendees: list = None, time_zone: str = "Indian/Antananarivo", user_id: str = None) -> str:
+    """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel), time_zone (time zone de l'utilisateur), user_id (ID de l'utilisateur)."""
     if not user_id:
         return "Erreur : user_id manquant."
     try:
@@ -204,8 +204,8 @@ def create_calendar_event(summary: str, start_time: str, end_time: str, descript
         event = {
             'summary': summary,
             'description': description,
-            'start': {'dateTime': start_time, 'timeZone': 'Indian/Antananarivo'},  # Ajuste le timezone
-            'end': {'dateTime': end_time, 'timeZone': 'Indian/Antananarivo'},
+            'start': {'dateTime': start_time, 'timeZone': time_zone},  # Ajuste le timezone
+            'end': {'dateTime': end_time, 'timeZone': time_zone},
         }
         if attendees:
             event['attendees'] = [{'email': email} for email in attendees]
