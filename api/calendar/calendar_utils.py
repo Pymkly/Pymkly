@@ -1,13 +1,11 @@
 import json
-import os.path
+import re
 
 from fastapi import HTTPException
-from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
-from google_auth_oauthlib.flow import InstalledAppFlow, Flow
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from langchain_core.tools import tool
-import re
 
 from api.db.conn import get_con
 

@@ -68,14 +68,17 @@ def check_before_remove_contact_on_groupe(cursor, groupe_contact_uuid: str, cont
 @tool
 def get_groupes(userid):
     """ Permet de lister les groupes des contacts. Params: user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
-    query = f"select uuid, userid, title, contact_uuid, contact_name, contact_numero, contact_email from v_contact_group where userid = ?"
-    cursor = conn.cursor()
-    cursor.execute(query, (userid,))
-    contacts = cursor.fetchall()
-    contact_format = [f"{contact[0]},{contact[1]},{contact[2]},{contact[3]},{contact[4]},{contact[5]},{contact[6]}" for contact in contacts]
-    resp = "\n".join(contact_format)
-    resp = "Contact group uuid, userid, titre du groupe, contact uuid, contact name, contact numero, contact email\n" + resp
-    return resp
+    try :
+        query = f"select uuid, userid, title, contact_uuid, contact_name, contact_numero, contact_email from v_contact_group where userid = ?"
+        cursor = conn.cursor()
+        cursor.execute(query, (userid,))
+        contacts = cursor.fetchall()
+        contact_format = [f"{contact[0]},{contact[1]},{contact[2]},{contact[3]},{contact[4]},{contact[5]},{contact[6]}" for contact in contacts]
+        resp = "\n".join(contact_format)
+        resp = "Contact group uuid, userid, titre du groupe, contact uuid, contact name, contact numero, contact email\n" + resp
+        return resp
+    except Exception as ex:
+        return f"Erreur lors de la recuperation des groupes : {ex}"
 
 
 @tool
@@ -119,30 +122,39 @@ def create_contact_group(title: str, user_uuid: str, contact_uuids: list):
 @tool
 def change_contact(contact_uuid, name, numero, email, userid):
     """ Permet de modifier un contact pour un utilisateur. Params: contact_uuid(uuid du contact deja enregistré) ,name (nom de la personne), numero (numero de la personne), email (email de la personne), userid (uuid de l'utilisateur rattaché au contact) """
-    query = f"update contacts set name=?, numero=?, email=?, userid=? where uuid=?"
-    cursor = conn.cursor()
-    cursor.execute(query, (name, numero, email, userid, contact_uuid))
-    conn.commit()
-    return "Contact modifié avec succés"
+    try :
+        query = f"update contacts set name=?, numero=?, email=?, userid=? where uuid=?"
+        cursor = conn.cursor()
+        cursor.execute(query, (name, numero, email, userid, contact_uuid))
+        conn.commit()
+        return "Contact modifié avec succés"
+    except Exception as e:
+        return f"Erreur lors de la modification du contact : {str(e)}"
 
 @tool
 def add_contact(name, numero, email, userid):
     """ Permet d'enregistrer un contact pour un utilisateur. Params: name (nom de la personne), numero (numero de la personne), email (email de la personne), userid (uuid de l'utilisateur rattaché au contact) """
-    _id = str(uuid.uuid4())
-    query = f"insert into contacts(uuid, name, numero, email, userid) values (?, ?, ?, ?, ?)"
-    cursor = conn.cursor()
-    cursor.execute(query, (_id, name, numero, email, userid))
-    conn.commit()
-    return "Contact inseré avec succés"
+    try :
+        _id = str(uuid.uuid4())
+        query = f"insert into contacts(uuid, name, numero, email, userid) values (?, ?, ?, ?, ?)"
+        cursor = conn.cursor()
+        cursor.execute(query, (_id, name, numero, email, userid))
+        conn.commit()
+        return "Contact inseré avec succés"
+    except Exception as e:
+        return f"Erreur lors de l'enregistrement du contact : {str(e)}"
 
 @tool
 def get_contact(userid):
     """ Permet de lister les contacts d'un utilisateur. Params: userid (uuid de l'utilisateur) """
-    query = f"select uuid, name, numero, email, userid from contacts where userid = ?"
-    cursor = conn.cursor()
-    cursor.execute(query, (userid,))
-    contacts = cursor.fetchall()
-    contact_format = [f"{contact[0]},{contact[1]},{contact[2]},{contact[3]},{contact[4]}" for contact in contacts]
-    resp = "\n".join(contact_format)
-    resp = "uuid, name, numero, email, userid\n" + resp
-    return resp
+    try:
+        query = f"select uuid, name, numero, email, userid from contacts where userid = ?"
+        cursor = conn.cursor()
+        cursor.execute(query, (userid,))
+        contacts = cursor.fetchall()
+        contact_format = [f"{contact[0]},{contact[1]},{contact[2]},{contact[3]},{contact[4]}" for contact in contacts]
+        resp = "\n".join(contact_format)
+        resp = "uuid, name, numero, email, userid\n" + resp
+        return resp
+    except Exception as e:
+        return f"Erreur lors de la recuperation des contacts pour l utilisateur {str(userid)} : {str(e)}"
