@@ -83,3 +83,11 @@ CREATE TABLE IF NOT EXISTS discussion_messages (
 select * , u.nom_complet
 from threads
 left join users u on threads.user_uuid = u.uuid;
+
+
+create table if not exists discussion_messages_suggestions (
+    id text PRIMARY KEY ,
+    discussion_message_id text,
+    suggestions text,
+    foreign key (discussion_message_id) references discussion_messages(id)
+);

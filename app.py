@@ -181,27 +181,29 @@ async def auth_callback(code: str = Query(...), state: str = Query(...)):
     redirect_url = f"{FRONTEND_URL}?token={access_token}&message=Auth%20Google%20réussie"
     return RedirectResponse(redirect_url)
 
-def save_message(thread_id: str, role: str, content: str, cursor):
-    _id = str(uuid.uuid4())
+def save_message(_id, thread_id: str, role: str, content: str, cursor):
     cursor.execute(
         "INSERT INTO discussion_messages (id, thread_id, role, content) VALUES (?, ?, ?, ?)",
         (_id, thread_id, role, content)
     )
+
 @app.post("/answer")
 def get_answer(request: AnswerRequest = Body(...), current_user: str = Depends(get_current_user)):
     try:
         user = request.thread_id
         print(user)
         logger.info(f"Requête reçue : text='{request.text}', thread_id={user}")
-        user, result = answer(request.text, user, current_user, request.clientTime, request.timeZone)
+        _id_discussion = str(uuid.uuid4())
+        user, result, suggestions = answer(request.text, user, current_user, request.clientTime, request.timeZone, _id_discussion)
         logger.info("Réponse générée avec succès")
         db = get_con()
         cursor = db.cursor()
-        save_message(user, "user", request.text, cursor)
-        save_message(user, "bot", result, cursor)
+        _id = str(uuid.uuid4())
+        save_message(_id, user, "user", request.text, cursor)
+        save_message(_id_discussion, user, "bot", result, cursor)
         db.commit()
         db.close()
-        return {"result": result, "thread_id": user}
+        return {"result": result, "thread_id": user, "suggestions": suggestions}
     except Exception as e:
         logger.error(f"Erreur lors du traitement : {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

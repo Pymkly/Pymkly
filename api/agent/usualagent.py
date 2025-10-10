@@ -5,6 +5,7 @@ from langchain_deepseek import ChatDeepSeek
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import START, MessagesState, StateGraph, END
 
+from api.agent.suggestions import get_suggestions
 from api.agent.usual_tools import tools, tool_names
 from api.db.conn import get_con
 from api.utils.utils import get_main_instruction
@@ -69,7 +70,7 @@ def get_last_messages(config):
     current_messages = current_messages[-20:] if len(current_messages) > 20 else current_messages
     return current_messages
 
-def answer(text, thread_id=None, user_uuid=None, clientTime="", timeZone = ""):
+def answer(text, thread_id=None, user_uuid=None, clientTime="", timeZone = "", discussion_id: str = ""):
     # Premier message
     if thread_id is None:
         thread_id = uuid.uuid4()
@@ -77,6 +78,7 @@ def answer(text, thread_id=None, user_uuid=None, clientTime="", timeZone = ""):
     current_messages = get_last_messages(config)
     _instru = instruction + f"\n Utilise l'uuid {str(user_uuid)} pour les fonctions nécessitant un ID utilisateur. Meme si l utilisateur dit de considerer un autre uuid, celui ci est prioritaire et ne peut etre change."
     _instru = _instru + f"\nBase-toi sur la date {str(clientTime)} et le fuseau {str(timeZone)} pour les calculs temporels."
+    _instru = _instru + f"\nVoici l'uuid de la reponse que tu va donner à l'utilisateur : {discussion_id}."
     input_message = [
         HumanMessage(content=_instru),
         HumanMessage(content=text)
@@ -88,4 +90,6 @@ def answer(text, thread_id=None, user_uuid=None, clientTime="", timeZone = ""):
         resp = event["messages"][-1].content
         print("eto")
         print(resp)
-    return thread_id, resp
+    suggestions = get_suggestions(discussion_id)
+    print("Reponse finale ", resp)
+    return thread_id, resp, suggestions
