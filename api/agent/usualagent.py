@@ -84,12 +84,16 @@ def answer(text, thread_id=None, user_uuid=None, clientTime="", timeZone = "", d
         HumanMessage(content=text)
     ]
     messages = current_messages + input_message
-    resp = ""
+    resp = []
     for event in app.stream({"messages": messages}, config, stream_mode="values"):
         event["messages"][-1].pretty_print()
-        resp = event["messages"][-1].content
+        temp = event["messages"][-1].content
+        resp.append(temp)
         print("eto")
-        print(resp)
+        print(temp)
+    result = resp[-1]
+    if len(resp) >= 3:
+        result = resp[-3]
     suggestions = get_suggestions(discussion_id)
     print("Reponse finale ", resp)
-    return thread_id, resp, suggestions
+    return thread_id, result, suggestions
