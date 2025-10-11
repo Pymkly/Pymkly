@@ -241,7 +241,7 @@ async def create_thread(thread: ThreadCreate, current_user: str = Depends(get_cu
 async def get_threads(current_user: str = Depends(get_current_user)):
     db = get_con()
     cursor = db.cursor()
-    cursor.execute("SELECT id, label FROM threads WHERE user_uuid = ?", (current_user,))
+    cursor.execute("SELECT id, label FROM threads WHERE user_uuid = ?  order by threads.created_at desc", (current_user,))
     threads = [{"id": row[0], "title": row[1], "lastMessage" : "", "category": "note", "timestamp": None, "isActive":False} for row in cursor.fetchall()]
     if len(threads) > 0:
         threads[0]["isActive"] = True
