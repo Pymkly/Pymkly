@@ -91,3 +91,10 @@ create table if not exists discussion_messages_suggestions (
     suggestions text,
     foreign key (discussion_message_id) references discussion_messages(id)
 );
+
+create table reset_password(
+    id text primary key ,
+    user_id text,
+    token text,
+    expire_date timestamp
+);

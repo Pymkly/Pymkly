@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from api.agent.usualagent import answer
 from api.auth.auth import create_access_token, register_user, has_google_auth, \
-    get_current_user, login_user, add_credentials
+    get_current_user, login_user, add_credentials, on_forgot_password, on_change_password_checking, on_change_password
 from api.calendar.calendar_utils import CREDENTIALS_FILE, SCOPES
 from api.db.conn import get_con
 from api.threads.threads import save_message, create_message, get_all_threads, get_one_threads
@@ -30,6 +30,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+class UserChangePassword(BaseModel):
+    token: str
+    mot_de_passe: str
+
+
 class UserCreate(BaseModel):
     nom_complet: str
     email: str
@@ -48,15 +53,37 @@ class AnswerRequest(BaseModel):
 class ThreadCreate(BaseModel):
     label: str
 
+
+@app.post("/change-password")
+async def change_password(form: UserChangePassword):
+    email, user_id = on_change_password(form.mot_de_passe, form.token)
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token({"sub": email, "uuid": user_id}, access_token_expires)
+    # Proposer le consentement si pas de Google Auth (par défaut pas encore lié)
+    return {
+        "email": email,
+        "access_token": access_token
+    }
+
+@app.get("/token-password-checking")
+async def token_password_checking(token: str = Query(...)):
+    user_id = on_change_password_checking(token)
+    return {"user_id": user_id}
+
+@app.get("/forgot-password")
+async def forgot_password(email: str = Query(...)):
+    on_forgot_password(email)
+    return "ok"
 @app.post("/register")
 async def register(user: UserCreate):
-    next_step = register_user(user)
+    next_step, user_id = register_user(user)
+    print(next_step)
+    print(user_id)
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token({"sub": user.email, "uuid": uuid}, access_token_expires)
+    access_token = create_access_token({"sub": user.email, "uuid": user_id}, access_token_expires)
     # Proposer le consentement si pas de Google Auth (par défaut pas encore lié)
     return {
         "message": "Utilisateur créé et connecté",
-        "uuid": uuid,
         "access_token": access_token,
         "token_type": "bearer",
         "next_step": next_step
