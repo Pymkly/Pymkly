@@ -4,15 +4,14 @@ from datetime import timedelta
 
 from fastapi import FastAPI, HTTPException, Body, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from google_auth_oauthlib.flow import Flow
 from pydantic import BaseModel
 
 from api.agent.usualagent import answer
 from api.auth.auth import create_access_token, register_user, has_google_auth, \
-    get_current_user, login_user, add_credentials, on_forgot_password, on_change_password_checking, on_change_password
-from api.calendar.calendar_utils import CREDENTIALS_FILE, SCOPES
+    get_current_user, login_user, on_forgot_password, on_change_password_checking, on_change_password, \
+    on_auth_callback, on_auth_google, get_cred_by_value
+from api.calendar.calendar_utils import SCOPES_CALENDAR
 from api.db.conn import get_con
 from api.threads.threads import save_message, create_message, get_all_threads, get_one_threads
 from config import config
@@ -21,6 +20,16 @@ logging.basicConfig(level=logging.INFO)
 FRONTEND_URL = config["FRONTEND_URL"]
 BACKEND_URL = config["BACKEND_URL"]
 ACCESS_TOKEN_EXPIRE_MINUTES = 3600*7
+CALENDAR_TYPE = {
+    "value" : 1,
+    "url" : f"{BACKEND_URL}/auth/callback/calendar"
+}
+GMAIL_TYPE = {
+    "value" : 50,
+    "url" : f"{BACKEND_URL}/auth/callback/gmail"
+}
+
+
 logger = logging.getLogger(__name__)
 app = FastAPI(title="H", description="API pour ton assistant personnel", version="1.0")
 app.add_middleware(
@@ -114,42 +123,14 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         "uuid": user["uuid"]  # Ajout de l'UUID
     }
 
-@app.get("/auth/google")
+@app.get("/auth/calendar")
 async def auth_google(user_uuid: str = Query(...)):
-    flow = Flow.from_client_secrets_file(
-        CREDENTIALS_FILE,
-        scopes=SCOPES,
-        redirect_uri=f"{BACKEND_URL}/auth/callback"  # Remplace par ton IP
-    )
-    authorization_url, state = flow.authorization_url(
-        access_type="offline",
-        include_granted_scopes="true",
-        state=user_uuid,  # Passe user_uuid via state
-        prompt="consent"
-    )
-    return RedirectResponse(authorization_url)
-
+    return on_auth_google(SCOPES_CALENDAR, user_uuid, CALENDAR_TYPE)
 
 # Endpoint callback pour récupérer le token
-@app.get("/auth/callback")
+@app.get("/auth/callback/calendar")
 async def auth_callback(code: str = Query(...), state: str = Query(...)):
-    flow = Flow.from_client_secrets_file(
-        CREDENTIALS_FILE,
-        scopes=SCOPES,
-        redirect_uri=f"{BACKEND_URL}/auth/callback"  # Remplace par ton IP
-    )
-    flow.fetch_token(code=code)
-    credentials = flow.credentials
-
-    # Stocker refresh_token dans SQLite
-    add_credentials(state, credentials.refresh_token)
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token({"sub": state, "uuid": state}, access_token_expires)
-    # Rediriger vers le frontend avec le token en paramètre
-    redirect_url = f"{FRONTEND_URL}?token={access_token}&message=Auth%20Google%20réussie"
-    return RedirectResponse(redirect_url)
-
-
+    return on_auth_callback(SCOPES_CALENDAR, code, state, CALENDAR_TYPE)
 
 @app.post("/answer")
 def get_answer(request: AnswerRequest = Body(...), current_user: str = Depends(get_current_user)):

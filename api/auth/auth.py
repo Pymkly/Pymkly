@@ -10,14 +10,63 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 import sqlite3
 from api.db.conn import get_con
+from google_auth_oauthlib.flow import Flow
 from config import config
+from api.calendar.calendar_utils import CREDENTIALS_FILE
+from fastapi.responses import RedirectResponse
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 FRONTEND_URL = config["FRONTEND_URL"]
 SECRET_KEY = "1terces3_repus2"
 ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 3600*7
+BACKEND_URL = config["BACKEND_URL"]
 
 db = get_con()
+
+def on_auth_google(scopes: list ,user_uuid:str, type_ : dict):
+    flow = Flow.from_client_secrets_file(
+        CREDENTIALS_FILE,
+        scopes=scopes,
+        redirect_uri=type_["url"]  # Remplace par ton IP
+    )
+    authorization_url, state = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        state=user_uuid,  # Passe user_uuid via state
+        prompt="consent"
+    )
+    return RedirectResponse(authorization_url)
+
+def get_cred_by_value(value):
+    cursor = db.cursor()
+    cursor.execute(
+        "select uuid, label, value from CredType where value = ?", (value,)
+    )
+    cred = cursor.fetchone()
+    return {
+        "uuid": cred[0],
+        "label": cred[1],
+        "value": cred[2]
+    }
+
+def on_auth_callback(scopes: list ,code: str, state: str, type_: dict):
+    cred = get_cred_by_value(type_["value"])
+    cred_id = cred["uuid"]
+    flow = Flow.from_client_secrets_file(
+        CREDENTIALS_FILE,
+        scopes=scopes,
+        redirect_uri=type_["url"]  # Remplace par ton IP
+    )
+    flow.fetch_token(code=code)
+    credentials = flow.credentials
+    # Stocker refresh_token dans SQLite
+    add_credentials(state, credentials.refresh_token, cred_id)
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token({"sub": state, "uuid": state}, access_token_expires)
+    # Rediriger vers le frontend avec le token en paramètre
+    redirect_url = f"{FRONTEND_URL}?token={access_token}&message=Auth%20Google%20réussie"
+    return RedirectResponse(redirect_url)
 
 def send_email(to_email: str, subject: str, body: str):
     from_email = "contact@tsisy.com"
@@ -84,11 +133,11 @@ L’équipe Tsisy.com est là pour vous accompagner dans une gestion quotidienne
 Bonne journée,
 L’équipe Tsisy.com""")
 
-def add_credentials(state, refresh_token):
+def add_credentials(state, refresh_token, cred_id):
     cursor = db.cursor()
     cursor.execute(
-        "INSERT OR REPLACE INTO user_credentials (uuid, user_uuid, refresh_token) VALUES (?, ?, ?)",
-        (str(uuid.uuid4()), state, refresh_token)
+        "INSERT INTO user_credentials (uuid, user_uuid, refresh_token, cred_type_id) VALUES (?, ?, ?, ?)",
+        (str(uuid.uuid4()), state, refresh_token, cred_id)
     )
     db.commit()
 
@@ -117,7 +166,7 @@ def register_user(user):
         (user_id, user.nom_complet, user.email, hashed_password)
     )
     db.commit()
-    next_step = f"/auth/google?user_uuid={user_id}&prompt=connect_google" if not has_google_auth(user_id, db) else None
+    next_step = f"/auth/calendar?user_uuid={user_id}&prompt=connect_google" if not has_google_auth(user_id, db) else None
     return next_step, user_id
 
 def get_current_user(token: str = Depends(oauth2_scheme)):

@@ -24,6 +24,34 @@ CREATE TABLE IF NOT EXISTS user_credentials (
     refresh_token TEXT,
     FOREIGN KEY (user_uuid) REFERENCES users(uuid) ON DELETE CASCADE
 );
+
+create table CredType (
+    uuid text primary key ,
+    label text,
+    value int
+);
+
+insert into CredType(uuid, label, value) values
+    ('a468b915-0ea1-476c-990f-78233f888422', 'Calendar', 1);
+
+pragma foreign_keys = OFF;
+BEGIN transaction ;
+alter table user_credentials rename to user_cred_old;
+
+CREATE TABLE IF NOT EXISTS user_credentials (
+    uuid TEXT PRIMARY KEY,
+    user_uuid TEXT,
+    refresh_token TEXT,
+    cred_type_id text,
+    FOREIGN KEY (user_uuid) REFERENCES users(uuid) ON DELETE CASCADE,
+    FOREIGN KEY (cred_type_id) references CredType(uuid) on delete cascade
+);
+INSERT INTO user_credentials (uuid, user_uuid, refresh_token, cred_type_id)
+SELECT uuid, user_uuid, refresh_token, 'a468b915-0ea1-476c-990f-78233f888422' FROM user_cred_old;  -- Migrer les anciens UUIDs avec des valeurs par défaut
+DROP TABLE user_cred_old;
+commit ;
+pragma foreign_keys = ON;
+
 create table contacts (
     uuid text primary key,
     name text,

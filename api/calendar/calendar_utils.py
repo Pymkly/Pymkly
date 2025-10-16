@@ -9,7 +9,7 @@ from langchain_core.tools import tool
 
 from api.db.conn import get_con
 
-SCOPES = ['https://www.googleapis.com/auth/calendar']
+SCOPES_CALENDAR = ['https://www.googleapis.com/auth/calendar']
 CREDENTIALS_FILE = "credentials.json"
 
 # Fonction pour authentifier et obtenir le service Calendar
@@ -36,10 +36,10 @@ def get_calendar_service(user_id: str):
         "token_uri": "https://oauth2.googleapis.com/token",
         "client_id": client_id,
         "client_secret": client_secret,
-        "scopes": SCOPES
+        "scopes": SCOPES_CALENDAR
     }
 
-    creds = Credentials.from_authorized_user_info(creds_data, SCOPES)
+    creds = Credentials.from_authorized_user_info(creds_data, SCOPES_CALENDAR)
     if not creds or not creds.valid:
         creds.refresh(Request())
 
