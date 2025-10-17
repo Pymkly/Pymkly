@@ -132,6 +132,7 @@ select uc.uuid,
        uc.user_uuid,
        uc.refresh_token,
        uc.cred_type_id,
+       uc.created_at,
        ct.label cred_type_label,
        ct.value cred_type_value
 from user_credentials uc
@@ -139,3 +140,23 @@ left join CredType ct on uc.cred_type_id=ct.uuid;
 
 select uc.*, u.nom_complet, u.email from v_user_credentials uc
 left join users u on uc.user_uuid = u.uuid;
+
+-- ajoute created_at
+pragma foreign_keys = OFF;
+BEGIN transaction ;
+alter table user_credentials rename to user_cred_old;
+
+CREATE TABLE IF NOT EXISTS user_credentials (
+    uuid TEXT PRIMARY KEY,
+    user_uuid TEXT,
+    refresh_token TEXT,
+    cred_type_id text,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_uuid) REFERENCES users(uuid) ON DELETE CASCADE,
+    FOREIGN KEY (cred_type_id) references CredType(uuid) on delete cascade
+);
+INSERT INTO user_credentials (uuid, user_uuid, refresh_token, cred_type_id)
+SELECT uuid, user_uuid, refresh_token, 'a468b915-0ea1-476c-990f-78233f888422' FROM user_cred_old;  -- Migrer les anciens UUIDs avec des valeurs par défaut
+DROP TABLE user_cred_old;
+commit ;
+pragma foreign_keys = ON;

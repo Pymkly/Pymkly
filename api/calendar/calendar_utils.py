@@ -43,7 +43,6 @@ def get_calendar_service(user_id: str):
     creds = Credentials.from_authorized_user_info(creds_data, SCOPES_CALENDAR)
     if not creds or not creds.valid:
         creds.refresh(Request())
-
     return build('calendar', 'v3', credentials=creds)
 
 
@@ -195,7 +194,7 @@ def list_calendar_events(start_date: str, end_date: str, user_id: str = None) ->
 # Tool LangChain pour créer un événement (DeepSeek peut l'appeler)
 @tool
 def create_calendar_event(summary: str, start_time: str, end_time: str, description: str = "", attendees: list = None, time_zone: str = "Indian/Antananarivo", user_id: str = None) -> str:
-    """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel), time_zone (time zone de l'utilisateur), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
+    """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel), time_zone (time zone de l'utilisateur), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne)."""
     if not user_id:
         return "Erreur : user_id manquant."
     try:
