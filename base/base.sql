@@ -126,3 +126,16 @@ create table reset_password(
     token text,
     expire_date timestamp
 );
+
+create view if not exists v_user_credentials as
+select uc.uuid,
+       uc.user_uuid,
+       uc.refresh_token,
+       uc.cred_type_id,
+       ct.label cred_type_label,
+       ct.value cred_type_value
+from user_credentials uc
+left join CredType ct on uc.cred_type_id=ct.uuid;
+
+select uc.*, u.nom_complet, u.email from v_user_credentials uc
+left join users u on uc.user_uuid = u.uuid;

@@ -11,7 +11,7 @@ from api.agent.usualagent import answer
 from api.auth.auth import create_access_token, register_user, has_google_auth, \
     get_current_user, login_user, on_forgot_password, on_change_password_checking, on_change_password, \
     on_auth_callback, on_auth_google, get_cred_by_value
-from api.calendar.calendar_utils import SCOPES_CALENDAR
+from api.calendar.calendar_utils import SCOPES_CALENDAR, SCOPES_GMAIL
 from api.db.conn import get_con
 from api.threads.threads import save_message, create_message, get_all_threads, get_one_threads
 from config import config
@@ -22,11 +22,13 @@ BACKEND_URL = config["BACKEND_URL"]
 ACCESS_TOKEN_EXPIRE_MINUTES = 3600*7
 CALENDAR_TYPE = {
     "value" : 1,
-    "url" : f"{BACKEND_URL}/auth/callback/calendar"
+    "url" : f"{BACKEND_URL}/auth/callback/calendar",
+    "credentials_file" : "credentials.json"
 }
 GMAIL_TYPE = {
     "value" : 50,
-    "url" : f"{BACKEND_URL}/auth/callback/gmail"
+    "url" : f"{BACKEND_URL}/auth/callback/gmail",
+    "credentials_file" : "credentials_gmail.json"
 }
 
 
@@ -124,13 +126,23 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     }
 
 @app.get("/auth/calendar")
-async def auth_google(user_uuid: str = Query(...)):
+async def auth_calendar(user_uuid: str = Query(...)):
     return on_auth_google(SCOPES_CALENDAR, user_uuid, CALENDAR_TYPE)
 
 # Endpoint callback pour récupérer le token
 @app.get("/auth/callback/calendar")
-async def auth_callback(code: str = Query(...), state: str = Query(...)):
+async def auth_callback_calendar(code: str = Query(...), state: str = Query(...)):
     return on_auth_callback(SCOPES_CALENDAR, code, state, CALENDAR_TYPE)
+
+@app.get("/auth/gmail")
+async def auth_gmail(user_uuid: str = Query(...)):
+    return on_auth_google(SCOPES_GMAIL, user_uuid, GMAIL_TYPE)
+
+# Endpoint callback pour récupérer le token
+@app.get("/auth/callback/gmail")
+async def auth_callback_gmail(code: str = Query(...), state: str = Query(...)):
+    return on_auth_callback(SCOPES_GMAIL, code, state, GMAIL_TYPE)
+
 
 @app.post("/answer")
 def get_answer(request: AnswerRequest = Body(...), current_user: str = Depends(get_current_user)):

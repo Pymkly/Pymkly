@@ -1,19 +1,20 @@
+import os
+import smtplib
+import sqlite3
 import uuid
 from datetime import datetime, timedelta
-import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import os
+from email.mime.text import MIMEText
+
 import bcrypt
 from fastapi import HTTPException, Depends
-from fastapi.security import OAuth2PasswordBearer
-from jose import jwt, JWTError
-import sqlite3
-from api.db.conn import get_con
-from google_auth_oauthlib.flow import Flow
-from config import config
-from api.calendar.calendar_utils import CREDENTIALS_FILE
 from fastapi.responses import RedirectResponse
+from fastapi.security import OAuth2PasswordBearer
+from google_auth_oauthlib.flow import Flow
+from jose import jwt, JWTError
+
+from api.db.conn import get_con
+from config import config
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 FRONTEND_URL = config["FRONTEND_URL"]
@@ -26,13 +27,13 @@ db = get_con()
 
 def on_auth_google(scopes: list ,user_uuid:str, type_ : dict):
     flow = Flow.from_client_secrets_file(
-        CREDENTIALS_FILE,
+        type_["credentials_file"],
         scopes=scopes,
         redirect_uri=type_["url"]  # Remplace par ton IP
     )
     authorization_url, state = flow.authorization_url(
         access_type="offline",
-        include_granted_scopes="true",
+        include_granted_scopes="false",
         state=user_uuid,  # Passe user_uuid via state
         prompt="consent"
     )
@@ -54,7 +55,7 @@ def on_auth_callback(scopes: list ,code: str, state: str, type_: dict):
     cred = get_cred_by_value(type_["value"])
     cred_id = cred["uuid"]
     flow = Flow.from_client_secrets_file(
-        CREDENTIALS_FILE,
+        type_["credentials_file"],
         scopes=scopes,
         redirect_uri=type_["url"]  # Remplace par ton IP
     )

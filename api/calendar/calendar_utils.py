@@ -10,6 +10,7 @@ from langchain_core.tools import tool
 from api.db.conn import get_con
 
 SCOPES_CALENDAR = ['https://www.googleapis.com/auth/calendar']
+SCOPES_GMAIL = ['https://mail.google.com/']
 CREDENTIALS_FILE = "credentials.json"
 
 # Fonction pour authentifier et obtenir le service Calendar
