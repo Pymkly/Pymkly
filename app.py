@@ -11,7 +11,7 @@ from api.agent.usualagent import answer
 from api.auth.auth import create_access_token, register_user, has_google_auth, \
     get_current_user, login_user, on_forgot_password, on_change_password_checking, on_change_password, \
     on_auth_callback, on_auth_google, get_cred_by_value
-from api.calendar.calendar_utils import SCOPES_CALENDAR, SCOPES_GMAIL
+from api.calendar.calendar_utils import SCOPES_CALENDAR, SCOPES_GMAIL, SCOPES_TASKS
 from api.db.conn import get_con
 from api.threads.threads import save_message, create_message, get_all_threads, get_one_threads
 from config import config
@@ -127,12 +127,12 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 @app.get("/auth/calendar")
 async def auth_calendar(user_uuid: str = Query(...)):
-    return on_auth_google(SCOPES_CALENDAR, user_uuid, CALENDAR_TYPE)
+    return on_auth_google(SCOPES_CALENDAR + SCOPES_TASKS, user_uuid, CALENDAR_TYPE)
 
 # Endpoint callback pour récupérer le token
 @app.get("/auth/callback/calendar")
 async def auth_callback_calendar(code: str = Query(...), state: str = Query(...)):
-    return on_auth_callback(SCOPES_CALENDAR, code, state, CALENDAR_TYPE)
+    return on_auth_callback(SCOPES_CALENDAR + SCOPES_TASKS, code, state, CALENDAR_TYPE)
 
 @app.get("/auth/gmail")
 async def auth_gmail(user_uuid: str = Query(...)):

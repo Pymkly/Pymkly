@@ -6,3 +6,6 @@ credentials.json
 /chat_history.db-wal
 /credentials1.json
 /etat.py
+__pycache__/
+*.py[cod]
+*$py.class

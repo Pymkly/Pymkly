@@ -9,7 +9,8 @@ from langchain_core.tools import tool
 
 from api.db.conn import get_con
 
-SCOPES_CALENDAR = ['https://www.googleapis.com/auth/calendar']
+SCOPES_CALENDAR = ['https://www.googleapis.com/auth/calendar' , ]
+SCOPES_TASKS = ['https://www.googleapis.com/auth/tasks']
 SCOPES_GMAIL = ['https://mail.google.com/']
 CREDENTIALS_FILE = "credentials.json"
 
@@ -17,7 +18,7 @@ CREDENTIALS_FILE = "credentials.json"
 def get_calendar_service(user_id: str):
     conn = get_con()
     cursor = conn.cursor()
-    cursor.execute("SELECT refresh_token FROM user_credentials WHERE user_uuid = ?", (user_id,))
+    cursor.execute("SELECT refresh_token FROM user_credentials WHERE user_uuid = ? order by created_at desc", (user_id,))
     result = cursor.fetchone()
     conn.close()
     if not result:
@@ -45,6 +46,39 @@ def get_calendar_service(user_id: str):
         creds.refresh(Request())
     return build('calendar', 'v3', credentials=creds)
 
+def get_tasks_service(user_id: str):
+    conn = get_con()
+    cursor = conn.cursor()
+    cursor.execute("SELECT refresh_token FROM user_credentials WHERE user_uuid = ? order by created_at desc", (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    if not result:
+        raise HTTPException(status_code=401, detail="Utilisateur non authentifié ou token manquant")
+    with open(CREDENTIALS_FILE, 'r') as f:
+        creds_info = json.load(f)
+        client_id = creds_info["web"]["client_id"]
+        client_secret = creds_info["web"]["client_secret"]
+
+    refresh_token = result[0]
+    print("refresh_token:", refresh_token)
+    creds_data = {
+        "refresh_token": refresh_token,
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scopes": SCOPES_CALENDAR + SCOPES_TASKS
+    }
+
+    creds = Credentials.from_authorized_user_info(creds_data, SCOPES_CALENDAR + SCOPES_TASKS)
+    if not creds or not creds.valid:
+        creds.refresh(Request())
+
+    # *** DIAGNOSTIC : AFFICHER SCOPES ***
+    print(f"*** TOKEN SCOPES: {creds.scopes} ***")
+    print(f"*** TOKEN VALID: {creds.valid} ***")
+
+
+    return build('tasks', 'v1', credentials=creds)
 
 # Tool pour ajouter un invité
 @tool
