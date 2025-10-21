@@ -22,7 +22,7 @@ def create_calendar_task(summary: str, description: str, due_date: str, time_zon
         - recurrence: "none", "daily", "weekly", "monthly", "custom"
         - recurrence_interval: Pour "custom" (ex: 3 = tous les 3 jours)
         - end_date_recurrence: Date de fin (ISO)
-        - user_id: Obligatoire
+        - user_id: (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne ).
     """
     if not user_id:
         return "Erreur : user_id manquant."

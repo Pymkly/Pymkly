@@ -149,11 +149,14 @@ def remove_attendee(event_id: str, emails: list = None, user_id: str = None) -> 
         return f"Erreur lors du retrait de l'invité : {str(e)}"
 
 @tool
-def delete_calendar_event(event_id: str, user_id: str = None) -> str:
-    """Supprime un événement Google Calendar. Param: event_id (ID de l'événement), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
+def delete_calendar_event(event_id: str, event_series_id: str = None, user_id: str = None) -> str:
+    """Supprime un événement Google Calendar. Param: event_id (ID de l'événement), event_series_id (ID de la série d'événements si != None supprimer toute la série), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
         return "Erreur : user_id manquant."
     try:
+        if event_series_id:
+            event_id = event_series_id
+
         service = get_calendar_service(user_id)
         # Vérifier si l'événement existe
         event = service.events().get(calendarId='primary', eventId=event_id).execute()
@@ -220,9 +223,10 @@ def list_calendar_events(start_date: str, end_date: str, user_id: str = None) ->
             start = event['start'].get('dateTime', event['start'].get('date'))
             summary = event.get('summary', 'Sans titre')
             event_id = event.get('id', 'ID inconnu')
+            event_series_id = event.get('recurringEventId', None)
             attendees = event.get('attendees', [])
             attendee_emails = [attendee['email'] for attendee in attendees] if attendees else []
-            result += f"- {summary} (ID: {event_id}) : {start}\n"+ (f" [Invités: {', '.join(attendee_emails)}]" if attendee_emails else "") + "\n"
+            result += f"- {summary} (ID: {event_id}) : {start}\n"+ f"- (ID_SERIES: {event_series_id}) \n"+ (f" [Invités: {', '.join(attendee_emails)}]" if attendee_emails else "") + "\n"
         return result
     except Exception as e:
         return f"Erreur lors de la liste : {str(e)}"
