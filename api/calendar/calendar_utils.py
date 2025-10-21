@@ -6,6 +6,8 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from langchain_core.tools import tool
+import pytz
+from datetime import datetime
 
 from api.db.conn import get_con
 
@@ -227,8 +229,8 @@ def list_calendar_events(start_date: str, end_date: str, user_id: str = None) ->
 
 # Tool LangChain pour créer un événement (DeepSeek peut l'appeler)
 @tool
-def create_calendar_event(summary: str, start_time: str, end_time: str, description: str = "", attendees: list = None, time_zone: str = "Indian/Antananarivo", user_id: str = None) -> str:
-    """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel), time_zone (time zone de l'utilisateur), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne)."""
+def create_calendar_event(summary: str, start_time: str, end_time: str, description: str = "", attendees: list = None, time_zone: str = "Indian/Antananarivo",recurrence: str = None, recurrence_interval: int = None, end_date_recurrence: str = None, reminder_minutes: int = 30, user_id: str = None) -> str:
+    """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel), time_zone (time zone de l'utilisateur), recurrence: Type de répétition ('daily', 'weekly', 'monthly', 'yearly' , 'custom') ou None , recurrence_interval: entier pour l'intervalle (ex: 3 pour tous les 3 jours) , end_date_recurrence: Fin de la série (ISO)  , reminder_minutes: Minutes avant le début pour le rappel (par défaut 30), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne)."""
     if not user_id:
         return "Erreur : user_id manquant."
     try:
@@ -241,6 +243,37 @@ def create_calendar_event(summary: str, start_time: str, end_time: str, descript
         }
         if attendees:
             event['attendees'] = [{'email': email} for email in attendees]
+
+        reminders = {
+            "useDefault": False,
+            "overrides": [
+                {
+                    "method": "email",
+                    "minutes": reminder_minutes
+                }
+            ]
+        }
+        event['reminders'] = reminders
+
+        # Gestion de la récurrence avancée
+        if recurrence:
+            # Par défaut, FREQ selon le type
+            freq = recurrence.upper()
+            if recurrence == "custom" and recurrence_interval:
+                freq = "DAILY"
+            rrule = f"RRULE:FREQ={freq}"
+            # Ajout de l'intervalle si fourni
+            if recurrence_interval:
+                rrule += f";INTERVAL={recurrence_interval}"
+            # Ajout de la date de fin si fournie
+            if end_date_recurrence:
+                dt_end = datetime.fromisoformat(end_date_recurrence.replace('Z', '+00:00'))
+                if dt_end.tzinfo is None:
+                    tz = pytz.timezone(time_zone)
+                    dt_end = tz.localize(dt_end)
+                rrule += f";UNTIL={dt_end.astimezone(pytz.UTC).strftime('%Y%m%dT%H%M%SZ')}"
+            event['recurrence'] = [rrule]
+
         event = service.events().insert(calendarId='primary', body=event).execute()
         return f"Événement créé ! ID: {event.get('id')} - {summary} de {start_time} à {end_time}"+ (f" avec invités: {', '.join(attendees)}" if attendees else "")
     except Exception as e:
