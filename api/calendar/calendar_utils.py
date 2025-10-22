@@ -20,7 +20,7 @@ CREDENTIALS_FILE = "credentials.json"
 def get_calendar_service(user_id: str):
     conn = get_con()
     cursor = conn.cursor()
-    cursor.execute("SELECT refresh_token FROM user_credentials WHERE user_uuid = ? order by created_at desc", (user_id,))
+    cursor.execute("SELECT refresh_token FROM user_credentials WHERE user_uuid = ? and cred_type_value=? order by created_at desc", (user_id, 1))
     result = cursor.fetchone()
     conn.close()
     if not result:
@@ -51,7 +51,7 @@ def get_calendar_service(user_id: str):
 def get_tasks_service(user_id: str):
     conn = get_con()
     cursor = conn.cursor()
-    cursor.execute("SELECT refresh_token FROM user_credentials WHERE user_uuid = ? order by created_at desc", (user_id,))
+    cursor.execute("SELECT refresh_token FROM user_credentials WHERE user_uuid = ? and cred_type_value=? order by created_at desc", (user_id, 1))
     result = cursor.fetchone()
     conn.close()
     if not result:
