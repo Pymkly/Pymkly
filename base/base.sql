@@ -171,3 +171,51 @@ insert into type_contact (uuid, nom, description) values
     ('e2a7f9c4-4g5h-5d3b- 0a1b- 9g5h6i7j8k9l', 'Professionnel', 'Contacts professionnels'),
     ('a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p', 'client', 'Contacts clients'),
     ('f3b8g0d5-5h6i-6e4c- 1b2c- 0h6i7j8k9l0m', 'Famille', 'Contacts familiaux');
+
+-- ajouter une colonne niveau (int) a la table contacts
+pragma foreign_keys = OFF;
+ALTER TABLE contacts ADD COLUMN niveau INTEGER;
+PRAGMA foreign_keys = ON;
+
+
+-- lier type_contact à contacts
+ALTER TABLE contacts ADD COLUMN type_contact_uuid TEXT;
+PRAGMA foreign_keys = OFF;
+
+
+BEGIN TRANSACTION;
+ALTER TABLE contacts RENAME TO contacts_old;
+CREATE TABLE contacts (
+    uuid TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    niveau INTEGER,
+    type_contact_uuid TEXT,
+    FOREIGN KEY (type_contact_uuid) REFERENCES type_contact(uuid) ON DELETE SET NULL
+);
+INSERT INTO contacts (uuid, name, email, phone, niveau, type_contact_uuid)
+SELECT uuid, name, email, phone, niveau, type_contact_uuid FROM contacts_old;
+DROP TABLE contacts_old;
+COMMIT;
+PRAGMA foreign_keys = ON;
+
+-- ajouter la colonne userid a la table contacts
+ALTER TABLE contacts ADD COLUMN userid TEXT;
+PRAGMA foreign_keys = OFF;
+BEGIN TRANSACTION;
+ALTER TABLE contacts RENAME TO contacts_old;
+CREATE TABLE contacts (
+    uuid TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    niveau INTEGER,
+    type_contact_uuid TEXT,
+    FOREIGN KEY (type_contact_uuid) REFERENCES type_contact(uuid) ON DELETE SET NULL
+);
+INSERT INTO contacts (uuid, name, email, phone, niveau, type_contact_uuid)
+SELECT uuid, name, email, phone, niveau, type_contact_uuid FROM contacts_old;
+DROP TABLE contacts_old;
+COMMIT;
+PRAGMA foreign_keys = ON;

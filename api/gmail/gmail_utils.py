@@ -52,7 +52,7 @@ def get_gmail_service(user_id: str):
     return build('gmail', 'v1', credentials=creds)
 
 @tool
-def list_emails(start_date: str = None, end_date: str = None, state:str = None, box: str = "inbox", max_results: str = "50", user_id: str = None) -> str:
+def list_emails(start_date: str = None, end_date: str = None, state:str = None, box: str = "inbox", max_results: str = "50", from_email: str = None, user_id: str = None ) -> str:
     """
     Liste les mails entre start_date et end_date (ISO datetimes).
     Retourne une chaîne lisible contenant id, threadId, from, subject, date et un extrait (snippet).
@@ -60,6 +60,7 @@ def list_emails(start_date: str = None, end_date: str = None, state:str = None, 
     - state: None | "read" | "unread"  -> filtre les mails par état
     - box: "inbox" (défaut) | "sent" | "all" | "drafts" | "spam" | "trash"
     - max_results: nombre maximum de mails à retourner (défaut 50)
+    - from_email: filtre par expéditeur (ex: "alice@example.com")
     - user_id : ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne.
     """
     if not user_id:
@@ -91,6 +92,16 @@ def list_emails(start_date: str = None, end_date: str = None, state:str = None, 
                 q_parts.append("is:read")
             else:
                 return "Erreur : paramètre state invalide (utiliser 'read' ou 'unread')."
+            
+        if from_email:
+            # mettre entre guillemets si adresse contient espace ou nom complet
+            safe = from_email.strip()
+            if " " in safe:
+                q_parts.append(f'from:"{safe}"')
+            else:
+                q_parts.append(f"from:{safe}")
+
+
         q = " ".join(q_parts) if q_parts else None
 
         label_map = {

@@ -132,29 +132,42 @@ def change_contact(contact_uuid, name, numero, email, userid):
         return f"Erreur lors de la modification du contact : {str(e)}"
 
 @tool
-def add_contact(name, numero, email, userid):
-    """ Permet d'enregistrer un contact pour un utilisateur. Params: name (nom de la personne), numero (numero de la personne), email (email de la personne), userid (uuid de l'utilisateur rattaché au contact) """
+def add_contact(name, numero, email, userid , niveau = 0, type_contact = None):
+    """ Permet d'enregistrer un contact pour un utilisateur. Params: name (nom de la personne), numero (numero de la personne), email (email de la personne), userid (uuid de l'utilisateur rattaché au contact) , niveau (niveau d'importance du type de contact 0  à 10 . 0:pas tres important , 5:moyennement important , 10: tres important), type_contact (nom du type de contact : Personnel , Professionnel , client , Famille) """
     try :
         _id = str(uuid.uuid4())
-        query = f"insert into contacts(uuid, name, numero, email, userid) values (?, ?, ?, ?, ?)"
+        query = f"insert into contacts(uuid, name, phone, email, userid, niveau, type_contact_uuid) values (?, ?, ?, ?, ?, ?, ?)"
         cursor = conn.cursor()
-        cursor.execute(query, (_id, name, numero, email, userid))
+        type_contact = get_type_contact(type_contact)
+        cursor.execute(query, (_id, name, numero, email, userid, niveau, type_contact))
         conn.commit()
         return "Contact inseré avec succés"
     except Exception as e:
         return f"Erreur lors de l'enregistrement du contact : {str(e)}"
 
+
+def get_type_contact(nom):
+    """ Permet de récupérer le type de contact en fonction de son nom. Params: nom (nom du type de contact) """
+    try:
+        query = f"select uuid from type_contact where nom = ?"
+        cursor = conn.cursor()
+        cursor.execute(query, (nom,))
+        result = cursor.fetchone()
+        return result[0] if result else None
+    except Exception as e:
+        return f"Erreur lors de la récupération du type de contact : {str(e)}"
+
 @tool
 def get_contact(userid):
     """ Permet de lister les contacts d'un utilisateur. Params: userid (uuid de l'utilisateur) """
     try:
-        query = f"select uuid, name, numero, email, userid from contacts where userid = ?"
+        query = f"select uuid, name, phone, email, userid , niveau, type_contact from contacts join type_contact on contacts.type_contact_uuid = type_contact.uuid where userid = ?"
         cursor = conn.cursor()
         cursor.execute(query, (userid,))
         contacts = cursor.fetchall()
-        contact_format = [f"{contact[0]},{contact[1]},{contact[2]},{contact[3]},{contact[4]}" for contact in contacts]
+        contact_format = [f"{contact[0]},{contact[1]},{contact[2]},{contact[3]},{contact[4]},{contact[5]},{contact[6]}" for contact in contacts]
         resp = "\n".join(contact_format)
-        resp = "uuid, name, numero, email, userid\n" + resp
+        resp = "uuid, name, phone, email, userid, niveau, type_contact\n" + resp
         return resp
     except Exception as e:
         return f"Erreur lors de la recuperation des contacts pour l utilisateur {str(userid)} : {str(e)}"
