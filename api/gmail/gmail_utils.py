@@ -52,11 +52,14 @@ def get_gmail_service(user_id: str):
     return build('gmail', 'v1', credentials=creds)
 
 @tool
-def list_emails(start_date: str = None, end_date: str = None, user_id: str = None) -> str:
+def list_emails(start_date: str = None, end_date: str = None, state:str = None, box: str = "inbox", max_results: str = "50", user_id: str = None) -> str:
     """
     Liste les mails entre start_date et end_date (ISO datetimes).
     Retourne une chaîne lisible contenant id, threadId, from, subject, date et un extrait (snippet).
     - start_date / end_date : ISO format (ex: '2025-10-01T00:00:00+03:00')
+    - state: None | "read" | "unread"  -> filtre les mails par état
+    - box: "inbox" (défaut) | "sent" | "all" | "drafts" | "spam" | "trash"
+    - max_results: nombre maximum de mails à retourner (défaut 50)
     - user_id : ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne.
     """
     if not user_id:
@@ -73,13 +76,47 @@ def list_emails(start_date: str = None, end_date: str = None, user_id: str = Non
         before_ts = int(dt_end.timestamp())
 
         svc = get_gmail_service(user_id)
-        q = f"after:{after_ts} before:{before_ts}"
-        resp = svc.users().messages().list(userId='me', q=q, maxResults=50).execute()
+
+        # préparer query et labelIds selon les paramètres
+        q_parts = []
+        if after_ts:
+            q_parts.append(f"after:{after_ts}")
+        if before_ts:
+            q_parts.append(f"before:{before_ts}")
+        if state:
+            s = state.lower()
+            if s == "unread":
+                q_parts.append("is:unread")
+            elif s == "read":
+                q_parts.append("is:read")
+            else:
+                return "Erreur : paramètre state invalide (utiliser 'read' ou 'unread')."
+        q = " ".join(q_parts) if q_parts else None
+
+        label_map = {
+            "inbox": ["INBOX"],
+            "sent": ["SENT"],
+            "drafts": ["DRAFT"],
+            "spam": ["SPAM"],
+            "trash": ["TRASH"],
+            "all": None
+        }
+        if box not in label_map:
+            return "Erreur : paramètre box invalide (inbox|sent|all|drafts|spam|trash)."
+        label_ids = label_map[box]
+
+        max_results = int(max_results) if max_results.isdigit() else 50
+
+        if label_ids:
+            resp = svc.users().messages().list(userId='me', labelIds=label_ids, q=q, maxResults=max_results).execute()
+        else:
+            resp = svc.users().messages().list(userId='me', q=q, maxResults=max_results).execute()
+
         msgs = resp.get('messages', [])
         if not msgs:
             return f"Aucun message trouvé entre {start_date} et {end_date}."
 
-        lines = [f"Mails entre {start_date} et {end_date} : ({len(msgs)} résultats suivis, max 50)"]
+        lines = [f"Mails entre {start_date} et {end_date} (state={state}) : ({len(msgs)} résultats suivis, max {max_results})"]
         for m in msgs:
             msg_id = m['id']
             full = svc.users().messages().get(userId='me', id=msg_id, format='full').execute()
@@ -88,7 +125,9 @@ def list_emails(start_date: str = None, end_date: str = None, user_id: str = Non
             sender = headers.get('From', '(inconnu)')
             date_h = headers.get('Date', '')
             snippet = full.get('snippet', '')
-            lines.append(f"- ID: {msg_id} | Thread: {full.get('threadId')} | From: {sender} | Subject: {subject} | Date: {date_h}\n  Snippet: {snippet}")
+            labels = full.get('labelIds', []) or []
+            msg_state = 'unread' if 'UNREAD' in labels else 'read'
+            lines.append(f"- ID: {msg_id} | Thread: {full.get('threadId')} | From: {sender} | Subject: {subject} | Date: {date_h} | State: {msg_state}\n  Snippet: {snippet}")
 
         return "\n".join(lines)
     except HttpError as he:

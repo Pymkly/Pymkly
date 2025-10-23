@@ -158,3 +158,16 @@ select uc.uuid,
        ct.value cred_type_value
 from user_credentials uc
 left join CredType ct on uc.cred_type_id=ct.uuid;
+
+
+CREATE TABLE  type_contact (
+    uuid text primary key ,
+    nom text not null ,
+    description text
+);
+
+insert into type_contact (uuid, nom, description) values
+    ('d1f6e8b3-3f4e-4c2a- ninth- 8f4e5c6d7e8f', 'Personnel', 'Contacts personnels'),
+    ('e2a7f9c4-4g5h-5d3b- 0a1b- 9g5h6i7j8k9l', 'Professionnel', 'Contacts professionnels'),
+    ('a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p', 'client', 'Contacts clients'),
+    ('f3b8g0d5-5h6i-6e4c- 1b2c- 0h6i7j8k9l0m', 'Famille', 'Contacts familiaux');
