@@ -20,7 +20,7 @@ CREDENTIALS_FILE = "credentials.json"
 def get_calendar_service(user_id: str):
     conn = get_con()
     cursor = conn.cursor()
-    cursor.execute("SELECT refresh_token FROM user_credentials WHERE user_uuid = ? and cred_type_value=? order by created_at desc", (user_id, 1))
+    cursor.execute("SELECT refresh_token FROM v_user_credentials WHERE user_uuid = ? and cred_type_value=? order by created_at desc", (user_id, 1))
     result = cursor.fetchone()
     conn.close()
     if not result:
@@ -51,7 +51,7 @@ def get_calendar_service(user_id: str):
 def get_tasks_service(user_id: str):
     conn = get_con()
     cursor = conn.cursor()
-    cursor.execute("SELECT refresh_token FROM user_credentials WHERE user_uuid = ? and cred_type_value=? order by created_at desc", (user_id, 1))
+    cursor.execute("SELECT refresh_token FROM v_user_credentials WHERE user_uuid = ? and cred_type_value=? order by created_at desc", (user_id, 1))
     result = cursor.fetchone()
     conn.close()
     if not result:
@@ -168,8 +168,8 @@ def delete_calendar_event(event_id: str, event_series_id: str = None, user_id: s
         return f"Erreur lors de la suppression : {str(e)}"
 
 @tool
-def shift_calendar_event(event_id: str, new_start_time: str, new_end_time: str, time_zone: str, user_id: str = None) -> str:
-    """Déplace un événement Google Calendar à de nouvelles dates/heures. Params: event_id (ID de l'événement), new_start_time/new_end_time (ISO format ex: '2025-10-01T14:00:00+03:00'), time_zone (time zone de l'utilisateur), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
+def update_calendar_event(event_id: str, new_start_time: str, new_end_time: str, time_zone: str, new_summary: str, new_description: str, user_id: str = None) -> str:
+    """Modifie un événement Google Calendar à de nouvelles dates/heures. Params: event_id (ID de l'événement), new_start_time/new_end_time (ISO format ex: '2025-10-01T14:00:00+03:00'), time_zone (time zone de l'utilisateur), new_summary (nouveau titre de l'événement si donné), new_description (nouvelle description de l'événement si donnée), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
         return "Erreur : user_id manquant."
     try:
@@ -183,10 +183,19 @@ def shift_calendar_event(event_id: str, new_start_time: str, new_end_time: str, 
         # Récupérer l'événement existant
         event = service.events().get(calendarId='primary', eventId=event_id).execute()
         # Mettre à jour les horaires
-        event['start']['dateTime'] = new_start_time
-        event['end']['dateTime'] = new_end_time
-        event['start']['timeZone'] = time_zone
-        event['end']['timeZone'] = time_zone
+
+        if new_description:
+            event['description'] = new_description
+
+        if new_summary:
+            event['summary'] = new_summary
+
+        if new_start_time and new_end_time:
+            event['start']['dateTime'] = new_start_time
+            event['end']['dateTime'] = new_end_time
+            event['start']['timeZone'] = time_zone
+            event['end']['timeZone'] = time_zone
+
         # Mettre à jour l'événement
         updated_event = service.events().update(calendarId='primary', eventId=event_id, body=event).execute()
         return f"Événement décalé ! ID: {event_id} - {updated_event.get('summary', 'Sans titre')} de {new_start_time} à {new_end_time}"
