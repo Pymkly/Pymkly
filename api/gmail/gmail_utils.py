@@ -93,6 +93,7 @@ def list_emails(start_date: str = None, end_date: str = None, state:str = None, 
             else:
                 return "Erreur : paramètre state invalide (utiliser 'read' ou 'unread')."
             
+        
         if from_email:
             # mettre entre guillemets si adresse contient espace ou nom complet
             safe = from_email.strip()
