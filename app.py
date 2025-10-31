@@ -1,6 +1,7 @@
 import logging
 import uuid
 from datetime import timedelta
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Body, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,10 +11,10 @@ from pydantic import BaseModel
 from api.agent.usualagent import answer
 from api.auth.auth import create_access_token, register_user, has_google_auth, \
     get_current_user, login_user, on_forgot_password, on_change_password_checking, on_change_password, \
-    on_auth_callback, on_auth_google, get_cred_by_value
+    on_auth_callback, on_auth_google
 from api.calendar.calendar_utils import SCOPES_CALENDAR, SCOPES_GMAIL, SCOPES_TASKS
 from api.db.conn import get_con
-from api.threads.threads import save_message, create_message, get_all_threads, get_one_threads
+from api.threads.threads import save_message, get_all_threads, get_one_threads, generate_conversation
 from config import config
 
 logging.basicConfig(level=logging.INFO)
@@ -57,7 +58,7 @@ class Token(BaseModel):
 
 class AnswerRequest(BaseModel):
     text: str
-    thread_id: str = None
+    thread_id: Optional[str] = None
     clientTime : str
     timeZone: str
 
@@ -151,7 +152,7 @@ def get_answer(request: AnswerRequest = Body(...), current_user: str = Depends(g
         print(user)
         logger.info(f"Requête reçue : text='{request.text}', thread_id={user}")
         _id_discussion = str(uuid.uuid4())
-        user, result, suggestions = answer(request.text, user, current_user, request.clientTime, request.timeZone, _id_discussion)
+        user, result, suggestions, metadata_ = answer(request.text, user, current_user, request.clientTime, request.timeZone, _id_discussion)
         logger.info("Réponse générée avec succès")
         db = get_con()
         cursor = db.cursor()
@@ -160,7 +161,16 @@ def get_answer(request: AnswerRequest = Body(...), current_user: str = Depends(g
         save_message(_id_discussion, user, "bot", result, cursor)
         db.commit()
         db.close()
-        return {"result": result, "thread_id": user, "suggestions": suggestions}
+        
+        # Préparer la réponse avec les informations de la conversation si disponible
+        response = {"result": result, "thread_id": user, "suggestions": suggestions}
+        
+        # Si c'est une nouvelle conversation, ajouter le label
+        response["label"] = None
+        if "label" in metadata_:
+            response["label"] = metadata_["label"]
+        
+        return response
     except Exception as e:
         logger.error(f"Erreur lors du traitement : {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -176,11 +186,16 @@ def get_discussions(thread_id: str = Query(...)):
         logger.error(f"Erreur lors de la recuperation de la discusion : {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# @app.post("/threads")
+# async def create_thread(thread: ThreadCreate, current_user: str = Depends(get_current_user)):
+#     thread_id = create_message(thread, current_user)
+#     return {"id": thread_id, "label": thread.label, "user_uuid": current_user}
 
 @app.post("/threads")
 async def create_thread(thread: ThreadCreate, current_user: str = Depends(get_current_user)):
-    thread_id = create_message(thread, current_user)
-    return {"id": thread_id, "label": thread.label, "user_uuid": current_user}
+    resp = generate_conversation(thread.label, current_user)
+    return resp
+
 
 @app.get("/threads")
 async def get_threads(current_user: str = Depends(get_current_user)):
@@ -195,4 +210,4 @@ def root():
 # Lancement : uvicorn api.main:app --reload
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8080)

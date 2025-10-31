@@ -77,8 +77,7 @@ create table groupe_contacts_details (
     foreign key (groupe_contact_uuid) references groupe_contacts(uuid) on delete cascade
 );
 
-
-create  view v_contact_group as
+create  view  v_contact_group as
 select gc.uuid,
        gc.userid,
        gc.title,
@@ -188,7 +187,7 @@ CREATE TABLE contacts (
     FOREIGN KEY (type_contact_uuid) REFERENCES type_contact(uuid) ON DELETE SET NULL
 );
 INSERT INTO contacts (uuid, name, email, numero, niveau, type_contact_uuid)
-SELECT uuid, name, email, numero, niveau, type_contact_uuid FROM contacts_old;
+SELECT uuid, name, email, numero, 0, null FROM contacts_old;
 DROP TABLE contacts_old;
 COMMIT;
 PRAGMA foreign_keys = ON;

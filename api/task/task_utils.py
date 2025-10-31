@@ -6,12 +6,13 @@ from langchain_core.tools import tool
 import pytz
 from typing import Literal
 
+from api.agent.tool_model import ToolResponse
 from api.calendar.calendar_utils import get_tasks_service
 
 ISO_WITH_TZ_RE = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$'
 
 @tool
-def create_calendar_task(summary: str, description: str, due_date: str, time_zone: str = "Indian/Antananarivo", recurrence: Literal["none", "daily", "weekly", "monthly", "custom"] = "none", recurrence_interval: int = None, end_date_recurrence: str = None, user_id: str = None) -> str:
+def create_calendar_task(summary: str, description: str, due_date: str, time_zone: str = "Indian/Antananarivo", recurrence: Literal["none", "daily", "weekly", "monthly", "custom"] = "none", recurrence_interval: int = None, end_date_recurrence: str = None, user_id: str = None) -> ToolResponse:
     """
     Crée une VRAIE tâche dans Google Tasks (comme dans l'UI de Google Calendar).
     Params:
@@ -25,7 +26,7 @@ def create_calendar_task(summary: str, description: str, due_date: str, time_zon
         - user_id: (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne ).
     """
     if not user_id:
-        return "Erreur : user_id manquant."
+        return ToolResponse("Erreur : user_id manquant.")
 
     try:
         # Récupérer les credentials du service Calendar et build Tasks API
@@ -62,9 +63,9 @@ def create_calendar_task(summary: str, description: str, due_date: str, time_zon
         created_task = tasks_service.tasks().insert(tasklist='@default', body=task).execute()
 
         # return f"Tâche créée dans Google Tasks ! ID: {created_task.get('id')} - {summary} (échéance: {due_date})" + (f" (répétition tous les {recurrence_interval} jours)" if recurrence_interval else "")
-        return f"Tâche créée ! ID: {created_task.get('id')} - {summary} (échéance: {due_date}){rec_text}"
+        return ToolResponse(f"Tâche créée ! ID: {created_task.get('id')} - {summary} (échéance: {due_date}){rec_text}")
 
     except HttpError as he:
-        return f"Erreur Google Tasks API : {str(he)}"
+        return ToolResponse(f"Erreur Google Tasks API : {str(he)}")
     except Exception as e:
-        return f"Erreur création tâche : {str(e)}"
+        return ToolResponse(f"Erreur création tâche : {str(e)}")

@@ -1,9 +1,25 @@
+import datetime
 import uuid
-
 from api.db.conn import get_con
 
 db = get_con()
 conn = get_con(row=True)
+
+
+
+def generate_conversation(message_: str, user_id: str) -> dict:
+    from api.agent.usualagent import answer
+    # Appeler answer avec thread_id=None pour déclencher la création automatique
+    _id_discussion = str(uuid.uuid4())
+    thread_id, result, suggestions, metadata_ = answer(message_, None, user_id, str(datetime.datetime.now()),
+                                                        "", _id_discussion)
+    # Retourner les informations de la conversation créée
+    return {
+        "id": metadata_.get("thread_id", thread_id),
+        "label": metadata_.get("label", "Nouvelle conversation"),
+        "user_uuid": user_id
+    }
+
 
 def create_message(thread, current_user):
     """thread : objet misy label, current_user : uuid de l'utilisateur"""

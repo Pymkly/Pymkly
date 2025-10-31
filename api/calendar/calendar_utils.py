@@ -9,6 +9,7 @@ from langchain_core.tools import tool
 import pytz
 from datetime import datetime
 
+from api.agent.tool_model import ToolResponse
 from api.db.conn import get_con
 
 SCOPES_CALENDAR = ['https://www.googleapis.com/auth/calendar' , ]
@@ -84,16 +85,16 @@ def get_tasks_service(user_id: str):
 
 # Tool pour ajouter un invité
 @tool
-def add_attendee(event_id: str, emails: list= None, user_id: str = None) -> str:
+def add_attendee(event_id: str, emails: list= None, user_id: str = None) -> ToolResponse:
     """Ajoute un invité à un événement Google Calendar. Params: event_id (ID de l'événement), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
-        return "Erreur : user_id manquant."
+        return ToolResponse("Erreur : user_id manquant.")
     try:
         if emails:
             # Valider l'email
             for email in emails:
                 if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
-                    return f"Erreur : email '{email}' n'est pas valide."
+                    return ToolResponse(f"Erreur : email '{email}' n'est pas valide.")
 
             service = get_calendar_service(user_id)
             # Récupérer l'événement existant
@@ -102,31 +103,31 @@ def add_attendee(event_id: str, emails: list= None, user_id: str = None) -> str:
             attendees = event.get('attendees', [])
             for email in emails:
                 if any(attendee['email'] == email for attendee in attendees):
-                    return f"Erreur : l'email '{email}' est déjà dans la liste des invités."
+                    return ToolResponse(f"Erreur : l'email '{email}' est déjà dans la liste des invités.")
                 attendees.append({'email': email})
             event['attendees'] = attendees
             # Mettre à jour l'événement
             updated_event = service.events().update(calendarId='primary', eventId=event_id, body=event).execute()
             message = ",".join([email for email in emails])
-            return f"Invité ajouté ! ID: {event_id} - {updated_event.get('summary', 'Sans titre')} - Invité: {message}"
+            return ToolResponse(f"Invité ajouté ! ID: {event_id} - {updated_event.get('summary', 'Sans titre')} - Invité: {message}")
         else:
-            return "Aucun emails mentionné. Aucune action n'a été faite."
+            return ToolResponse("Aucun emails mentionné. Aucune action n'a été faite.")
     except Exception as e:
-        return f"Erreur lors de l'ajout de l'invité : {str(e)}"
+        return ToolResponse(f"Erreur lors de l'ajout de l'invité : {str(e)}")
 
 
 # Tool pour retirer un invité
 @tool
-def remove_attendee(event_id: str, emails: list = None, user_id: str = None) -> str:
+def remove_attendee(event_id: str, emails: list = None, user_id: str = None) -> ToolResponse:
     """Retire un invité d'un événement Google Calendar. Params: event_id (ID de l'événement), emails (emails des invités), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
-        return "Erreur : user_id manquant."
+        return ToolResponse("Erreur : user_id manquant.")
     try:
         if emails :
             # Valider l'email
             for email in emails:
                 if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
-                    return f"Erreur : email '{email}' n'est pas valide."
+                    return ToolResponse(f"Erreur : email '{email}' n'est pas valide.")
 
             service = get_calendar_service(user_id)
             # Récupérer l'événement existant
@@ -135,24 +136,24 @@ def remove_attendee(event_id: str, emails: list = None, user_id: str = None) -> 
             attendees = event.get('attendees', [])
             for email in emails:
                 if not any(attendee['email'] == email for attendee in attendees):
-                    return f"Erreur : l'email '{email}' n'est pas dans la liste des invités."
+                    return ToolResponse(f"Erreur : l'email '{email}' n'est pas dans la liste des invités.")
             for email in emails:
                 attendees = [attendee for attendee in attendees if attendee['email'] != email]
             event['attendees'] = attendees
             # Mettre à jour l'événement
             updated_event = service.events().update(calendarId='primary', eventId=event_id, body=event).execute()
             message = ",".join([email for email in emails])
-            return f"Invité retiré ! ID: {event_id} - {updated_event.get('summary', 'Sans titre')} - Retiré: {message}"
+            return ToolResponse(f"Invité retiré ! ID: {event_id} - {updated_event.get('summary', 'Sans titre')} - Retiré: {message}")
         else:
-            return "Aucun emails mentionné. Aucune action n'a été faite."
+            return ToolResponse("Aucun emails mentionné. Aucune action n'a été faite.")
     except Exception as e:
-        return f"Erreur lors du retrait de l'invité : {str(e)}"
+        return ToolResponse(f"Erreur lors du retrait de l'invité : {str(e)}")
 
 @tool
-def delete_calendar_event(event_id: str, event_series_id: str = None, user_id: str = None) -> str:
+def delete_calendar_event(event_id: str, event_series_id: str = None, user_id: str = None) -> ToolResponse:
     """Supprime un événement Google Calendar. Param: event_id (ID de l'événement), event_series_id (ID de la série d'événements si != None supprimer toute la série), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
-        return "Erreur : user_id manquant."
+        return ToolResponse("Erreur : user_id manquant.")
     try:
         if event_series_id:
             event_id = event_series_id
@@ -163,21 +164,21 @@ def delete_calendar_event(event_id: str, event_series_id: str = None, user_id: s
         summary = event.get('summary', 'Sans titre')
         # Supprimer l'événement
         service.events().delete(calendarId='primary', eventId=event_id).execute()
-        return f"Événement supprimé ! ID: {event_id} - {summary}"
+        return ToolResponse(f"Événement supprimé ! ID: {event_id} - {summary}")
     except Exception as e:
-        return f"Erreur lors de la suppression : {str(e)}"
+        return ToolResponse(f"Erreur lors de la suppression : {str(e)}")
 
 @tool
-def update_calendar_event(event_id: str, new_start_time: str, new_end_time: str, time_zone: str, new_summary: str, new_description: str, user_id: str = None) -> str:
+def update_calendar_event(event_id: str, new_start_time: str, new_end_time: str, time_zone: str, new_summary: str, new_description: str, user_id: str = None) -> ToolResponse:
     """Modifie un événement Google Calendar à de nouvelles dates/heures. Params: event_id (ID de l'événement), new_start_time/new_end_time (ISO format ex: '2025-10-01T14:00:00+03:00'), time_zone (time zone de l'utilisateur), new_summary (nouveau titre de l'événement si donné), new_description (nouvelle description de l'événement si donnée), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
-        return "Erreur : user_id manquant."
+        return ToolResponse("Erreur : user_id manquant.")
     try:
         # Valider le format ISO
         if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$', new_start_time):
-            return f"Erreur : new_start_time '{new_start_time}' n'est pas au format ISO valide (ex: '2025-10-01T14:00:00+03:00')."
+            return ToolResponse(f"Erreur : new_start_time '{new_start_time}' n'est pas au format ISO valide (ex: '2025-10-01T14:00:00+03:00').")
         if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$', new_end_time):
-            return f"Erreur : new_end_time '{new_end_time}' n'est pas au format ISO valide (ex: '2025-10-01T15:00:00+03:00')."
+            return ToolResponse(f"Erreur : new_end_time '{new_end_time}' n'est pas au format ISO valide (ex: '2025-10-01T15:00:00+03:00').")
 
         service = get_calendar_service(user_id)
         # Récupérer l'événement existant
@@ -198,22 +199,22 @@ def update_calendar_event(event_id: str, new_start_time: str, new_end_time: str,
 
         # Mettre à jour l'événement
         updated_event = service.events().update(calendarId='primary', eventId=event_id, body=event).execute()
-        return f"Événement décalé ! ID: {event_id} - {updated_event.get('summary', 'Sans titre')} de {new_start_time} à {new_end_time}"
+        return ToolResponse(f"Événement décalé ! ID: {event_id} - {updated_event.get('summary', 'Sans titre')} de {new_start_time} à {new_end_time}")
     except Exception as e:
-        return f"Erreur lors du décalage : {str(e)}"
+        return ToolResponse(f"Erreur lors du décalage : {str(e)}")
 
 # Tool pour lister les événements
 @tool
-def list_calendar_events(start_date: str, end_date: str, user_id: str = None) -> str:
+def list_calendar_events(start_date: str, end_date: str, user_id: str = None) -> ToolResponse:
     """Liste les événements Google Calendar entre start_date et end_date (ISO format ex: '2025-10-01T00:00:00+03:00'). . Retourne l'ID, le titre, la date et les invités de chaque événement, user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
-        return "Erreur : user_id manquant."
+        return ToolResponse("Erreur : user_id manquant.")
     try:
         # Valider le format ISO
         if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$', start_date):
-            return f"Erreur : start_date '{start_date}' n'est pas au format ISO valide (ex: '2025-10-01T00:00:00+03:00')."
+            return ToolResponse(f"Erreur : start_date '{start_date}' n'est pas au format ISO valide (ex: '2025-10-01T00:00:00+03:00').")
         if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$', end_date):
-            return f"Erreur : end_date '{end_date}' n'est pas au format ISO valide (ex: '2025-10-01T23:59:59+03:00')."
+            return ToolResponse(f"Erreur : end_date '{end_date}' n'est pas au format ISO valide (ex: '2025-10-01T23:59:59+03:00').")
 
         service = get_calendar_service(user_id)
         events_result = service.events().list(
@@ -226,7 +227,7 @@ def list_calendar_events(start_date: str, end_date: str, user_id: str = None) ->
         ).execute()
         events = events_result.get('items', [])
         if not events:
-            return f"Aucun événement trouvé entre {start_date} et {end_date}."
+            return ToolResponse(f"Aucun événement trouvé entre {start_date} et {end_date}.")
         result = f"Événements entre {start_date} et {end_date}:\n"
         for event in events:
             start = event['start'].get('dateTime', event['start'].get('date'))
@@ -238,14 +239,14 @@ def list_calendar_events(start_date: str, end_date: str, user_id: str = None) ->
             result += f"- {summary} (ID: {event_id}) : {start}\n"+ f"- (ID_SERIES: {event_series_id}) \n"+ (f" [Invités: {', '.join(attendee_emails)}]" if attendee_emails else "") + "\n"
         return result
     except Exception as e:
-        return f"Erreur lors de la liste : {str(e)}"
+        return ToolResponse(f"Erreur lors de la liste : {str(e)}")
 
 # Tool LangChain pour créer un événement (DeepSeek peut l'appeler)
 @tool
-def create_calendar_event(summary: str, start_time: str, end_time: str, description: str = "", attendees: list = None, time_zone: str = "Indian/Antananarivo",recurrence: str = None, recurrence_interval: int = None, end_date_recurrence: str = None, reminder_minutes: int = 30, user_id: str = None) -> str:
+def create_calendar_event(summary: str, start_time: str, end_time: str, description: str = "", attendees: list = None, time_zone: str = "Indian/Antananarivo",recurrence: str = None, recurrence_interval: int = None, end_date_recurrence: str = None, reminder_minutes: int = 30, user_id: str = None) -> ToolResponse:
     """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel), time_zone (time zone de l'utilisateur), recurrence: Type de répétition ('daily', 'weekly', 'monthly', 'yearly' , 'custom') ou None , recurrence_interval: entier pour l'intervalle (ex: 3 pour tous les 3 jours) , end_date_recurrence: Fin de la série (ISO)  , reminder_minutes: Minutes avant le début pour le rappel (par défaut 30), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne)."""
     if not user_id:
-        return "Erreur : user_id manquant."
+        return ToolResponse("Erreur : user_id manquant.")
     try:
         service = get_calendar_service(user_id)
         event = {
@@ -288,6 +289,6 @@ def create_calendar_event(summary: str, start_time: str, end_time: str, descript
             event['recurrence'] = [rrule]
 
         event = service.events().insert(calendarId='primary', body=event).execute()
-        return f"Événement créé ! ID: {event.get('id')} - {summary} de {start_time} à {end_time}"+ (f" avec invités: {', '.join(attendees)}" if attendees else "")
+        return ToolResponse(f"Événement créé ! ID: {event.get('id')} - {summary} de {start_time} à {end_time}"+ (f" avec invités: {', '.join(attendees)}" if attendees else ""))
     except Exception as e:
-        return f"Erreur lors de la création : {str(e)}"
+        return ToolResponse(f"Erreur lors de la création : {str(e)}")

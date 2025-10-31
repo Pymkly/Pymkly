@@ -1,3 +1,4 @@
+from api.agent.tool_model import ToolResponse
 from api.db.conn import get_con
 import json
 from langchain_core.tools import tool
@@ -52,7 +53,7 @@ def get_gmail_service(user_id: str):
     return build('gmail', 'v1', credentials=creds)
 
 @tool
-def list_emails(start_date: str = None, end_date: str = None, state:str = None, box: str = "inbox", max_results: str = "50", from_email: str = None, user_id: str = None ) -> str:
+def list_emails(start_date: str = None, end_date: str = None, state:str = None, box: str = "inbox", max_results: str = "50", from_email: str = None, user_id: str = None )  -> ToolResponse:
     """
     Liste les mails entre start_date et end_date (ISO datetimes).
     Retourne une chaîne lisible contenant id, threadId, from, subject, date et un extrait (snippet).
@@ -64,14 +65,14 @@ def list_emails(start_date: str = None, end_date: str = None, state:str = None, 
     - user_id : ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne.
     """
     if not user_id:
-        return "Erreur : user_id manquant."
+        return ToolResponse("Erreur : user_id manquant.")
     try:
         # Valider / parser les dates ISO
         try:
             dt_start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
             dt_end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
         except Exception:
-            return "Erreur : start_date ou end_date non au format ISO attendu."
+            return ToolResponse("Erreur : start_date ou end_date non au format ISO attendu.")
 
         after_ts = int(dt_start.timestamp())
         before_ts = int(dt_end.timestamp())
@@ -91,7 +92,7 @@ def list_emails(start_date: str = None, end_date: str = None, state:str = None, 
             elif s == "read":
                 q_parts.append("is:read")
             else:
-                return "Erreur : paramètre state invalide (utiliser 'read' ou 'unread')."
+                return ToolResponse("Erreur : paramètre state invalide (utiliser 'read' ou 'unread').")
             
         
         if from_email:
@@ -114,7 +115,7 @@ def list_emails(start_date: str = None, end_date: str = None, state:str = None, 
             "all": None
         }
         if box not in label_map:
-            return "Erreur : paramètre box invalide (inbox|sent|all|drafts|spam|trash)."
+            return ToolResponse("Erreur : paramètre box invalide (inbox|sent|all|drafts|spam|trash).")
         label_ids = label_map[box]
 
         max_results = int(max_results) if max_results.isdigit() else 50
@@ -126,7 +127,7 @@ def list_emails(start_date: str = None, end_date: str = None, state:str = None, 
 
         msgs = resp.get('messages', [])
         if not msgs:
-            return f"Aucun message trouvé entre {start_date} et {end_date}."
+            return ToolResponse(f"Aucun message trouvé entre {start_date} et {end_date}.")
 
         lines = [f"Mails entre {start_date} et {end_date} (state={state}) : ({len(msgs)} résultats suivis, max {max_results})"]
         for m in msgs:
@@ -141,14 +142,14 @@ def list_emails(start_date: str = None, end_date: str = None, state:str = None, 
             msg_state = 'unread' if 'UNREAD' in labels else 'read'
             lines.append(f"- ID: {msg_id} | Thread: {full.get('threadId')} | From: {sender} | Subject: {subject} | Date: {date_h} | State: {msg_state}\n  Snippet: {snippet}")
 
-        return "\n".join(lines)
+        return ToolResponse("\n".join(lines))
     except HttpError as he:
-        return f"Erreur Gmail API : {str(he)}"
+        return ToolResponse(f"Erreur Gmail API : {str(he)}")
     except Exception as e:
-        return f"Erreur lors de la liste des mails : {str(e)}"
+        return ToolResponse(f"Erreur lors de la liste des mails : {str(e)}")
     
 @tool
-def send_email(to: str, subject: str, body: str, cc: list = None, bcc: list = None, attachments: list = None, user_id: str = None) -> str:
+def send_email(to: str, subject: str, body: str, cc: list = None, bcc: list = None, attachments: list = None, user_id: str = None)  -> ToolResponse:
     """
     Envoie un email via l'API Gmail pour l'utilisateur `user_id`.
     - to: string ou liste d'emails
@@ -160,7 +161,7 @@ def send_email(to: str, subject: str, body: str, cc: list = None, bcc: list = No
     Retourne un message texte avec l'ID du message ou une erreur.
     """
     if not user_id:
-        return "Erreur : user_id manquant."
+        return ToolResponse("Erreur : user_id manquant.")
     try:
         svc = get_gmail_service(user_id)
 
@@ -201,8 +202,8 @@ def send_email(to: str, subject: str, body: str, cc: list = None, bcc: list = No
 
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         resp = svc.users().messages().send(userId='me', body={'raw': raw}).execute()
-        return f"Message envoyé ! ID: {resp.get('id')}"
+        return ToolResponse(f"Message envoyé ! ID: {resp.get('id')}")
     except HttpError as he:
-        return f"Erreur Gmail API : {str(he)}"
+        return ToolResponse(f"Erreur Gmail API : {str(he)}")
     except Exception as e:
-        return f"Erreur envoi mail : {str(e)}"
+        return ToolResponse(f"Erreur envoi mail : {str(e)}")
