@@ -66,7 +66,7 @@ def on_auth_callback(scopes: list ,code: str, state: str, type_: dict):
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token({"sub": state, "uuid": state}, access_token_expires)
     # Rediriger vers le frontend avec le token en paramètre
-    redirect_url = f"{FRONTEND_URL}?token={access_token}&message=Auth%20Google%20réussie"
+    redirect_url = f"{FRONTEND_URL}?token={access_token}&message=Auth%20Google%20réussie&action=close"
     return RedirectResponse(redirect_url)
 
 def send_email(to_email: str, subject: str, body: str):

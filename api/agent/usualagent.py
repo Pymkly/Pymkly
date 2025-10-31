@@ -127,20 +127,16 @@ def answer(text, thread_id=None, user_uuid=None, clientTime="", timeZone="", dis
     suggestions = []
     metadata_ = {}
     for event in app.stream({"messages": messages}, config, stream_mode="values"):
-        # event["messages"][-1].pretty_print()
+        event["messages"][-1].pretty_print()
         temp = event["messages"][-1].content
         resp.append(temp)
         print(temp)
         metadata_ = event.get("metadata", {})
-        suggestions = event.get("suggestions", [])
+        # suggestions = event.get("suggestions", [])
     result = resp[-1]
     # if len(resp) > 3:
     #     result = resp[-3]
     # Si c'était une nouvelle conversation, récupérer le thread_id créé par le tool
     if is_new_conversation and "thread_id" in metadata_:
         thread_id = metadata_["thread_id"]
-    
-    print("metadata", metadata_)
-    print("suugestions", suggestions)
-    print("Reponse finale ", resp)
     return thread_id, result, suggestions, metadata_
