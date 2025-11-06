@@ -9,3 +9,6 @@ credentials.json
 __pycache__/
 *.py[cod]
 *$py.class
+
+
+langsmith.txt

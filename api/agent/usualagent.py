@@ -1,3 +1,4 @@
+import os
 import uuid
 from typing import List
 
@@ -15,6 +16,11 @@ from api.utils.utils import get_main_instruction
 class CustomMessageState(MessagesState):
     suggestions: List[str]
     metadata: dict
+
+
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_API_KEY"] = "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"
+os.environ["LANGCHAIN_PROJECT"] = "tsisy"
 
 
 workflow = StateGraph(state_schema=CustomMessageState)

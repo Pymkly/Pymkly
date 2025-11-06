@@ -16,9 +16,32 @@ SCOPES_CALENDAR = ['https://www.googleapis.com/auth/calendar' , ]
 SCOPES_TASKS = ['https://www.googleapis.com/auth/tasks']
 SCOPES_GMAIL = ['https://mail.google.com/']
 CREDENTIALS_FILE = "credentials.json"
+SERVICES = {}
+
+
+# Fonction pour avoir le calendar service via le dictionnaire
+def get_calendar_service(user_id: str):
+    if user_id not in SERVICES:
+        SERVICES[user_id] = {}
+        SERVICES[user_id]["calendar"] = get_calendar_service_db(user_id)
+
+    if "calendar" not in SERVICES[user_id]:
+        SERVICES[user_id]["calendar"] = get_calendar_service_db(user_id)
+    return SERVICES[user_id]["calendar"]
+
+# Fonction pour avoir le tasks service via le dictionnaire
+def get_tasks_service(user_id: str):
+    if user_id not in SERVICES:
+        SERVICES[user_id] = {}
+        SERVICES[user_id]["tasks"] = get_tasks_service_db(user_id)
+
+    if "tasks" not in SERVICES[user_id]:
+        SERVICES[user_id]["tasks"] = get_tasks_service_db(user_id)
+    return SERVICES[user_id]["tasks"]
+
 
 # Fonction pour authentifier et obtenir le service Calendar
-def get_calendar_service(user_id: str):
+def get_calendar_service_db(user_id: str):
     conn = get_con()
     cursor = conn.cursor()
     cursor.execute("SELECT refresh_token FROM v_user_credentials WHERE user_uuid = ? and cred_type_value=? order by created_at desc", (user_id, 1))
@@ -49,7 +72,7 @@ def get_calendar_service(user_id: str):
         creds.refresh(Request())
     return build('calendar', 'v3', credentials=creds)
 
-def get_tasks_service(user_id: str):
+def get_tasks_service_db(user_id: str):
     conn = get_con()
     cursor = conn.cursor()
     cursor.execute("SELECT refresh_token FROM v_user_credentials WHERE user_uuid = ? and cred_type_value=? order by created_at desc", (user_id, 1))

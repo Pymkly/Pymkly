@@ -17,10 +17,21 @@ import os
 
 SCOPES_GMAIL = ['https://mail.google.com/']
 CREDENTIALS_FILE = "credentials_gmail.json"
+SERVICES = {}
 
 db = get_con(row=True)
 
+# Fonction pour avoir le gmail service via le dictionnaire
 def get_gmail_service(user_id: str):
+    if user_id not in SERVICES:
+        SERVICES[user_id] = {}
+        SERVICES[user_id]["gmail"] = get_gmail_service_db(user_id)
+
+    if "gmail" not in SERVICES[user_id]:
+        SERVICES[user_id]["gmail"] = get_gmail_service_db(user_id)
+    return SERVICES[user_id]["gmail"]
+
+def get_gmail_service_db(user_id: str):
     """Retourne un service Gmail (googleapiclient) en utilisant le refresh_token stocké."""
     conn = get_con()
     cursor = conn.cursor()
