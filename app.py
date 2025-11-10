@@ -3,10 +3,14 @@ import uuid
 from datetime import timedelta
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Body, Query, Depends
+from fastapi import FastAPI, HTTPException, Body, Query, Depends , APIRouter
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
+import json , uuid , time
+from api.agent.usualagent import agent_app, get_last_messages, instruction
+from langchain_core.messages import HumanMessage
 
 from api.agent.usualagent import answer
 from api.auth.auth import create_access_token, register_user, has_google_auth, \
@@ -206,6 +210,54 @@ async def get_threads(current_user: str = Depends(get_current_user)):
 @app.get("/")
 def root():
     return {"message": "Bienvenue sur l'API Deep Rice Bot ! Endpoint principal : /answer (POST)"}
+
+router = APIRouter()
+
+def build_messages(user_uuid, clientTime, timeZone, discussion_id, text, thread_id):
+    _instru = (
+        instruction
+        + f"\n Utilise l'uuid {str(user_uuid)} pour les fonctions nécessitant un ID utilisateur."
+        + f"\nBase-toi sur la date {str(clientTime)} et le fuseau {str(timeZone)}."
+        + f"\nVoici l'uuid de la reponse : {discussion_id}."
+    )
+    is_new = thread_id is None
+    if is_new:
+        thread_id = str(uuid.uuid4())
+        _instru += "\nCeci est le premier message. Utilise le tool 'create_conversation' pour créer la conversation."
+    config = {"configurable": {"thread_id": thread_id}}
+    current = get_last_messages(config)
+    messages = current + [HumanMessage(content=_instru), HumanMessage(content=text)]
+    return messages, config, is_new
+
+@router.get("/agent/stream")
+def stream_agent(
+    text: str,
+    user_uuid: str,
+    clientTime: str = "",
+    timeZone: str = "",
+    discussion_id: str = "",
+    thread_id: str | None = None,
+):
+    messages, config, is_new = build_messages(user_uuid, clientTime, timeZone, discussion_id, text, thread_id)
+
+    def event_generator():
+        new_thread_id = thread_id
+        partial = ""
+        for event in agent_app.stream({"messages": messages, "metadata": {"user_id": user_uuid}}, config, stream_mode="values"):
+            last = event["messages"][-1].content
+            # Simple heuristic: send incremental delta (you can refine diffing)
+            delta = last if not partial or not last.startswith(partial) else last[len(partial):]
+            partial = last
+            payload = {"delta": delta, "full": partial}
+            if is_new and "metadata" in event and "thread_id" in event["metadata"]:
+                new_thread_id = event["metadata"]["thread_id"]
+                payload["thread_id"] = new_thread_id
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+app.include_router(router)
 
 # Lancement : uvicorn api.main:app --reload
 if __name__ == "__main__":

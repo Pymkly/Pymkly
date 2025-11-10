@@ -260,7 +260,7 @@ def list_calendar_events(start_date: str, end_date: str, user_id: str = None) ->
             attendees = event.get('attendees', [])
             attendee_emails = [attendee['email'] for attendee in attendees] if attendees else []
             result += f"- {summary} (ID: {event_id}) : {start}\n"+ f"- (ID_SERIES: {event_series_id}) \n"+ (f" [Invités: {', '.join(attendee_emails)}]" if attendee_emails else "") + "\n"
-        return result
+        return ToolResponse(result)
     except Exception as e:
         return ToolResponse(f"Erreur lors de la liste : {str(e)}")
 

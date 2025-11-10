@@ -93,7 +93,7 @@ workflow.add_edge("tools", "model")
 # memory = MemorySaver()
 conn = get_con()
 memory = SqliteSaver(conn)
-app = workflow.compile(checkpointer=memory)
+agent_app = workflow.compile(checkpointer=memory)
 instruction = get_main_instruction()
 
 
@@ -131,7 +131,7 @@ def answer(text, thread_id=None, user_uuid=None, clientTime="", timeZone="", dis
     resp = []
     suggestions = []
     metadata_ = {}
-    for event in app.stream({"messages": messages}, config, stream_mode="values"):
+    for event in agent_app.stream({"messages": messages}, config, stream_mode="values"):
         event["messages"][-1].pretty_print()
         temp = event["messages"][-1].content
         resp.append(temp)
