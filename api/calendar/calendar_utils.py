@@ -108,8 +108,8 @@ def get_tasks_service_db(user_id: str):
 
 # Tool pour ajouter un invité
 @tool
-def add_attendee(event_id: str, emails: list= None, user_id: str = None) -> ToolResponse:
-    """Ajoute un invité à un événement Google Calendar. Params: event_id (ID de l'événement), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
+def add_attendee(event_id: str, emails: list= None, send_invitations: bool = True, user_id: str = None) -> ToolResponse:
+    """Ajoute un invité à un événement Google Calendar. Params: event_id (ID de l'événement), emails (liste d'emails des invités à ajouter), send_invitations: Si True (défaut), envoie une notification à tous les invités (y compris les nouveaux). Si False, ajoute les invités sans envoyer de notifications. Le modèle DOIT demander à l'utilisateur s'il souhaite envoyer les notifications lors de l'ajout d'invités, user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
         return ToolResponse("Erreur : user_id manquant.")
     try:
@@ -129,10 +129,19 @@ def add_attendee(event_id: str, emails: list= None, user_id: str = None) -> Tool
                     return ToolResponse(f"Erreur : l'email '{email}' est déjà dans la liste des invités.")
                 attendees.append({'email': email})
             event['attendees'] = attendees
+            
+            # Envoyer les notifications selon le paramètre send_invitations
+            if send_invitations:
+                send_updates = 'all'
+                notification_msg = " (notification envoyée à tous les invités)"
+            else:
+                send_updates = 'none'
+                notification_msg = " (ajouté sans envoyer de notifications)"
+            
             # Mettre à jour l'événement
-            updated_event = service.events().update(calendarId='primary', eventId=event_id, body=event).execute()
+            updated_event = service.events().update(calendarId='primary', eventId=event_id, body=event, sendUpdates=send_updates).execute()
             message = ",".join([email for email in emails])
-            return ToolResponse(f"Invité ajouté ! ID: {event_id} - {updated_event.get('summary', 'Sans titre')} - Invité: {message}")
+            return ToolResponse(f"Invité ajouté ! ID: {event_id} - {updated_event.get('summary', 'Sans titre')} - Invité: {message}{notification_msg}")
         else:
             return ToolResponse("Aucun emails mentionné. Aucune action n'a été faite.")
     except Exception as e:
@@ -141,8 +150,8 @@ def add_attendee(event_id: str, emails: list= None, user_id: str = None) -> Tool
 
 # Tool pour retirer un invité
 @tool
-def remove_attendee(event_id: str, emails: list = None, user_id: str = None) -> ToolResponse:
-    """Retire un invité d'un événement Google Calendar. Params: event_id (ID de l'événement), emails (emails des invités), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
+def remove_attendee(event_id: str, emails: list = None, send_invitations: bool = True, user_id: str = None) -> ToolResponse:
+    """Retire un invité d'un événement Google Calendar. Params: event_id (ID de l'événement), emails (emails des invités), send_invitations: Si True (défaut), envoie une notification aux invités restants. Si False, retire les invités sans envoyer de notifications. Le modèle DOIT demander à l'utilisateur s'il souhaite envoyer les notifications si des invités restent après le retrait, user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     if not user_id:
         return ToolResponse("Erreur : user_id manquant.")
     try:
@@ -163,10 +172,22 @@ def remove_attendee(event_id: str, emails: list = None, user_id: str = None) -> 
             for email in emails:
                 attendees = [attendee for attendee in attendees if attendee['email'] != email]
             event['attendees'] = attendees
+            
+            # Envoyer les notifications selon le paramètre send_invitations
+            if send_invitations and len(attendees) > 0:
+                send_updates = 'all'
+                notification_msg = " (notification envoyée aux autres invités)"
+            elif not send_invitations:
+                send_updates = 'none'
+                notification_msg = " (retiré sans envoyer de notifications)"
+            else:
+                send_updates = 'none'
+                notification_msg = ""
+            
             # Mettre à jour l'événement
-            updated_event = service.events().update(calendarId='primary', eventId=event_id, body=event).execute()
+            updated_event = service.events().update(calendarId='primary', eventId=event_id, body=event, sendUpdates=send_updates).execute()
             message = ",".join([email for email in emails])
-            return ToolResponse(f"Invité retiré ! ID: {event_id} - {updated_event.get('summary', 'Sans titre')} - Retiré: {message}")
+            return ToolResponse(f"Invité retiré ! ID: {event_id} - {updated_event.get('summary', 'Sans titre')} - Retiré: {message}{notification_msg}")
         else:
             return ToolResponse("Aucun emails mentionné. Aucune action n'a été faite.")
     except Exception as e:
@@ -266,8 +287,8 @@ def list_calendar_events(start_date: str, end_date: str, user_id: str = None) ->
 
 # Tool LangChain pour créer un événement (DeepSeek peut l'appeler)
 @tool
-def create_calendar_event(summary: str, start_time: str, end_time: str, description: str = "", attendees: list = None, time_zone: str = "Indian/Antananarivo",recurrence: str = None, recurrence_interval: int = None, end_date_recurrence: str = None, reminder_minutes: int = 30, user_id: str = None) -> ToolResponse:
-    """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel), time_zone (time zone de l'utilisateur), recurrence: Type de répétition ('daily', 'weekly', 'monthly', 'yearly' , 'custom') ou None , recurrence_interval: entier pour l'intervalle (ex: 3 pour tous les 3 jours) , end_date_recurrence: Fin de la série (ISO)  , reminder_minutes: Minutes avant le début pour le rappel (par défaut 30), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne)."""
+def create_calendar_event(summary: str, start_time: str, end_time: str, description: str = "", attendees: list = None, time_zone: str = "Indian/Antananarivo", recurrence: str = None, recurrence_interval: int = None, end_date_recurrence: str = None, reminder_minutes: int = 30, send_invitations: bool = True, user_id: str = None) -> ToolResponse:
+    """Crée un événement Google Calendar. Params: summary (titre), start_time/end_time (ISO format ex: '2025-10-01T14:00:00'), description, attendees (liste d'emails à inviter pendant l'evenement, optionnel), time_zone (time zone de l'utilisateur), recurrence: Type de répétition ('daily', 'weekly', 'monthly', 'yearly' , 'custom') ou None , recurrence_interval: entier pour l'intervalle (ex: 3 pour tous les 3 jours) , end_date_recurrence: Fin de la série (ISO)  , reminder_minutes: Minutes avant le début pour le rappel (par défaut 30), send_invitations: Si True (défaut), envoie les invitations par email aux invités. Si False, ajoute les invités sans envoyer d'invitations. Le modèle DOIT demander à l'utilisateur s'il souhaite envoyer les invitations si des invités sont présents, user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne)."""
     if not user_id:
         return ToolResponse("Erreur : user_id manquant.")
     try:
@@ -311,7 +332,18 @@ def create_calendar_event(summary: str, start_time: str, end_time: str, descript
                 rrule += f";UNTIL={dt_end.astimezone(pytz.UTC).strftime('%Y%m%dT%H%M%SZ')}"
             event['recurrence'] = [rrule]
 
-        event = service.events().insert(calendarId='primary', body=event).execute()
-        return ToolResponse(f"Événement créé ! ID: {event.get('id')} - {summary} de {start_time} à {end_time}"+ (f" avec invités: {', '.join(attendees)}" if attendees else ""))
+        # Envoyer les notifications aux invités selon le paramètre send_invitations
+        if attendees and send_invitations:
+            send_updates = 'all'
+            notification_msg = " (invitations envoyées aux invités)"
+        elif attendees and not send_invitations:
+            send_updates = 'none'
+            notification_msg = " (invités ajoutés sans envoyer d'invitations)"
+        else:
+            send_updates = 'none'
+            notification_msg = ""
+        
+        event = service.events().insert(calendarId='primary', body=event, sendUpdates=send_updates).execute()
+        return ToolResponse(f"Événement créé ! ID: {event.get('id')} - {summary} de {start_time} à {end_time}"+ (f" avec invités: {', '.join(attendees)}" if attendees else "") + notification_msg)
     except Exception as e:
         return ToolResponse(f"Erreur lors de la création : {str(e)}")
