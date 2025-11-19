@@ -12,9 +12,9 @@ def remove_contact_group(groupe_contact_uuid: str, userid: str) -> ToolResponse:
     try:
         cursor = conn.cursor()
         check_before_remove_contact_group(cursor, groupe_contact_uuid, userid)
-        query = "delete from groupe_contacts_details where groupe_contact_uuid = ?"
+        query = "delete from groupe_contacts_details where groupe_contact_uuid = %s"
         cursor.execute(query, (groupe_contact_uuid,))
-        query = "delete from groupe_contacts where uuid = ?"
+        query = "delete from groupe_contacts where uuid = %s"
         cursor.execute(query, (groupe_contact_uuid,))
         conn.commit()
         return ToolResponse("Operation réussi")
@@ -23,7 +23,7 @@ def remove_contact_group(groupe_contact_uuid: str, userid: str) -> ToolResponse:
 
 
 def check_before_remove_contact_group(cursor, groupe_contact_uuid: str, userid: str):
-    query = "select * from groupe_contacts where uuid=? and userid=?"
+    query = "select * from groupe_contacts where uuid=%s and userid=%s"
     cursor.execute(query, (groupe_contact_uuid, userid))
     groupes = cursor.fetchall()
     if len(groupes) == 0:
@@ -35,11 +35,11 @@ def remove_contact_on_groupe(groupe_contact_uuid: str, contact_uuid: str, userid
     try :
         cursor = conn.cursor()
         check_before_remove_contact_on_groupe(cursor, groupe_contact_uuid, contact_uuid, userid)
-        query = "select uuid from groupe_contacts_details where contact_uuid=? and groupe_contact_uuid=?"
+        query = "select uuid from groupe_contacts_details where contact_uuid=%s and groupe_contact_uuid=%s"
         cursor.execute(query, (contact_uuid, groupe_contact_uuid))
         group_details = cursor.fetchone()
         if group_details:
-            query = "delete from groupe_contacts_details where uuid=?"
+            query = "delete from groupe_contacts_details where uuid=%s"
             cursor.execute(query, (group_details[0],))
             conn.commit()
             return ToolResponse(f"le contact a bien été supprimé du groupe")
@@ -50,7 +50,7 @@ def remove_contact_on_groupe(groupe_contact_uuid: str, contact_uuid: str, userid
 
 
 def check_before_remove_contact_on_groupe(cursor, groupe_contact_uuid: str, contact_uuid: str, userid: str):
-    query = f"select uuid, userid, title, contact_uuid, contact_name, contact_numero, contact_email from v_contact_group where userid = ?"
+    query = f"select uuid, userid, title, contact_uuid, contact_name, contact_numero, contact_email from v_contact_group where userid = %s"
     cursor.execute(query, (userid,))
     contacts = cursor.fetchall()
     check_group_exist = False
@@ -70,7 +70,7 @@ def check_before_remove_contact_on_groupe(cursor, groupe_contact_uuid: str, cont
 def get_groupes(userid) -> ToolResponse:
     """ Permet de lister les groupes des contacts. Params: user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     try :
-        query = f"select uuid, userid, title, contact_uuid, contact_name, contact_numero, contact_email from v_contact_group where userid = ?"
+        query = f"select uuid, userid, title, contact_uuid, contact_name, contact_numero, contact_email from v_contact_group where userid = %s"
         cursor = conn.cursor()
         cursor.execute(query, (userid,))
         contacts = cursor.fetchall()
@@ -89,7 +89,7 @@ def add_contacts_to_group(group_uuid: str, contact_uuids: list, recipient_types:
         cursor = conn.cursor()
         
         # Vérifier que le groupe appartient à l'utilisateur
-        cursor.execute("SELECT uuid FROM groupe_contacts WHERE uuid = ? AND userid = ?", (group_uuid, userid))
+        cursor.execute("SELECT uuid FROM groupe_contacts WHERE uuid = %s AND userid = %s", (group_uuid, userid))
         if not cursor.fetchone():
             return ToolResponse("Erreur : Le groupe n'existe pas ou n'appartient pas à l'utilisateur")
         
@@ -103,7 +103,7 @@ def add_contacts_to_group(group_uuid: str, contact_uuids: list, recipient_types:
         added_count = 0
         for i, contact_uuid in enumerate(contact_uuids):
             # Vérifier si le contact n'est pas déjà dans le groupe
-            cursor.execute("SELECT uuid FROM groupe_contacts_details WHERE contact_uuid = ? AND groupe_contact_uuid = ?", 
+            cursor.execute("SELECT uuid FROM groupe_contacts_details WHERE contact_uuid = %s AND groupe_contact_uuid = %s", 
                          (contact_uuid, group_uuid))
             if cursor.fetchone():
                 continue  # Skip si déjà présent
@@ -115,7 +115,7 @@ def add_contacts_to_group(group_uuid: str, contact_uuids: list, recipient_types:
             
             detail_uuid = str(uuid.uuid4())
             cursor.execute(
-                "INSERT INTO groupe_contacts_details (uuid, groupe_contact_uuid, contact_uuid, type_destinataire) VALUES (?, ?, ?, ?)",
+                "INSERT INTO groupe_contacts_details (uuid, groupe_contact_uuid, contact_uuid, type_destinataire) VALUES (%s, %s, %s, %s)",
                 (detail_uuid, group_uuid, contact_uuid, recipient_type))
             added_count += 1
         conn.commit()
@@ -129,7 +129,7 @@ def create_contact_group(title: str, user_uuid: str, contact_uuids: list , recip
     try:
         group_id = str(uuid.uuid4())
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO groupe_contacts (uuid, userid, title) VALUES (?, ?, ?)", (group_id, user_uuid, title))
+        cursor.execute("INSERT INTO groupe_contacts (uuid, userid, title) VALUES (%s, %s, %s)", (group_id, user_uuid, title))
 
         # Si recipient_types n'est pas fourni, tous les contacts sont en 'to' par défaut
         if recipient_types is None:
@@ -146,7 +146,7 @@ def create_contact_group(title: str, user_uuid: str, contact_uuids: list , recip
             
             detail_uuid = str(uuid.uuid4())
             cursor.execute(
-                "INSERT INTO groupe_contacts_details (uuid, groupe_contact_uuid, contact_uuid, type_destinataire) VALUES (?, ?, ?, ?)",
+                "INSERT INTO groupe_contacts_details (uuid, groupe_contact_uuid, contact_uuid, type_destinataire) VALUES (%s, %s, %s, %s)",
                 (detail_uuid, group_id, contact_uuid, recipient_type))
         conn.commit()
         return ToolResponse(f"Groupe créé ! UUID: {group_id} - Titre: {title} avec {len(contact_uuids)} contacts.")
@@ -158,7 +158,7 @@ def create_contact_group(title: str, user_uuid: str, contact_uuids: list , recip
 def change_contact(contact_uuid, name, numero, email, userid) -> ToolResponse:
     """ Permet de modifier un contact pour un utilisateur. Params: contact_uuid(uuid du contact deja enregistré) ,name (nom de la personne), numero (numero de la personne), email (email de la personne), userid (uuid de l'utilisateur rattaché au contact) """
     try :
-        query = f"update contacts set name=?, numero=?, email=?, userid=? where uuid=?"
+        query = f"update contacts set name=%s, numero=%s, email=%s, userid=%s where uuid=%s"
         cursor = conn.cursor()
         cursor.execute(query, (name, numero, email, userid, contact_uuid))
         conn.commit()
@@ -171,7 +171,7 @@ def add_contact(name, numero, email, userid , niveau = 0, type_contact = None) -
     """ Permet d'enregistrer un contact pour un utilisateur. Params: name (nom de la personne), numero (numero de la personne), email (email de la personne), userid (uuid de l'utilisateur rattaché au contact) , niveau (niveau d'importance du type de contact 0  à 10 . 0:pas tres important , 5:moyennement important , 10: tres important), type_contact (nom du type de contact : Personnel , Professionnel , client , Famille) """
     try :
         _id = str(uuid.uuid4())
-        query = f"insert into contacts(uuid, name, numero, email, userid, niveau, type_contact_uuid) values (?, ?, ?, ?, ?, ?, ?)"
+        query = f"insert into contacts(uuid, name, numero, email, userid, niveau, type_contact_uuid) values (%s, %s, %s, %s, %s, %s, %s)"
         cursor = conn.cursor()
         type_contact = get_type_contact(type_contact)
         cursor.execute(query, (_id, name, numero, email, userid, niveau, type_contact))
@@ -184,7 +184,7 @@ def add_contact(name, numero, email, userid , niveau = 0, type_contact = None) -
 def get_type_contact(nom):
     """ Permet de récupérer le type de contact en fonction de son nom. Params: nom (nom du type de contact) """
     try:
-        query = f"select uuid from type_contact where nom = ?"
+        query = f"select uuid from type_contact where nom = %s"
         cursor = conn.cursor()
         cursor.execute(query, (nom,))
         result = cursor.fetchone()
@@ -196,7 +196,7 @@ def get_type_contact(nom):
 def get_contact(userid) -> ToolResponse:
     """ Permet de lister les contacts d'un utilisateur. Params: userid (uuid de l'utilisateur) """
     try:
-        query = f"select contacts.uuid, name, numero, email, userid , niveau, type_contact.nom from contacts join type_contact on contacts.type_contact_uuid = type_contact.uuid where userid = ?"
+        query = f"select contacts.uuid, name, numero, email, userid , niveau, type_contact.nom from contacts join type_contact on contacts.type_contact_uuid = type_contact.uuid where userid = %s"
         cursor = conn.cursor()
         cursor.execute(query, (userid,))
         contacts = cursor.fetchall()
@@ -217,7 +217,7 @@ def get_group_recipients_by_type(group_uuid: str, user_id: str):
         FROM groupe_contacts_details gcd
         JOIN contacts c ON gcd.contact_uuid = c.uuid
         JOIN groupe_contacts gc ON gcd.groupe_contact_uuid = gc.uuid
-        WHERE gc.uuid = ? AND gc.userid = ?
+        WHERE gc.uuid = %s AND gc.userid = %s
     """
     cursor = conn.cursor()
     cursor.execute(query, (group_uuid, user_id))

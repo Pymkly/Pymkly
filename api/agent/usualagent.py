@@ -4,8 +4,10 @@ from typing import List
 
 from langchain_core.messages import ToolMessage, HumanMessage
 from langchain_deepseek import ChatDeepSeek
-from langgraph.checkpoint.sqlite import SqliteSaver
+# from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import START, MessagesState, StateGraph, END
+from config import config
 
 from api.agent.tool_model import ToolResponse
 from api.agent.usual_tools import tools, tool_names
@@ -91,8 +93,10 @@ workflow.add_conditional_edges("model", route_tools, {"tools": "tools", END: END
 workflow.add_edge("tools", "model")
 
 # memory = MemorySaver()
-conn = get_con()
-memory = SqliteSaver(conn)
+postgres_url = f"postgresql://{config.get('POSTGRES_USER', 'postgres')}:{config.get('POSTGRES_PASSWORD', 'itu16')}@{config.get('POSTGRES_HOST', 'localhost')}:{config.get('POSTGRES_PORT', '5432')}/{config.get('POSTGRES_DB', 'tsisy')}"
+
+# Initialiser PostgresSaver avec l'URL de connexion
+memory = PostgresSaver(postgres_url)
 agent_app = workflow.compile(checkpointer=memory)
 instruction = get_main_instruction()
 

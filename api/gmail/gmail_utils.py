@@ -35,7 +35,7 @@ def get_gmail_service_db(user_id: str):
     """Retourne un service Gmail (googleapiclient) en utilisant le refresh_token stocké."""
     conn = get_con()
     cursor = conn.cursor()
-    cursor.execute("SELECT refresh_token FROM v_user_credentials WHERE user_uuid = ? and cred_type_value=? order by created_at desc", (user_id, 50))
+    cursor.execute("SELECT refresh_token FROM v_user_credentials WHERE user_uuid = %s and cred_type_value=%s order by created_at desc", (user_id, 50))
     result = cursor.fetchone()
     conn.close()
     if not result:

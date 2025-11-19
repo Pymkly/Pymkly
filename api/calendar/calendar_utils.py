@@ -44,7 +44,7 @@ def get_tasks_service(user_id: str):
 def get_calendar_service_db(user_id: str):
     conn = get_con()
     cursor = conn.cursor()
-    cursor.execute("SELECT refresh_token FROM v_user_credentials WHERE user_uuid = ? and cred_type_value=? order by created_at desc", (user_id, 1))
+    cursor.execute("SELECT refresh_token FROM v_user_credentials WHERE user_uuid = %s and cred_type_value=%s order by created_at desc", (user_id, 1))
     result = cursor.fetchone()
     conn.close()
     if not result:
@@ -75,7 +75,7 @@ def get_calendar_service_db(user_id: str):
 def get_tasks_service_db(user_id: str):
     conn = get_con()
     cursor = conn.cursor()
-    cursor.execute("SELECT refresh_token FROM v_user_credentials WHERE user_uuid = ? and cred_type_value=? order by created_at desc", (user_id, 1))
+    cursor.execute("SELECT refresh_token FROM v_user_credentials WHERE user_uuid = %s and cred_type_value=%s order by created_at desc", (user_id, 1))
     result = cursor.fetchone()
     conn.close()
     if not result:

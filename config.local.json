@@ -1,4 +1,9 @@
 {
   "FRONTEND_URL" : "http://localhost:5173",
-  "BACKEND_URL" : "http://localhost:8080"
+  "BACKEND_URL" : "http://localhost:8080",
+  "POSTGRES_HOST": "localhost",
+  "POSTGRES_PORT": "5432",
+  "POSTGRES_DB": "tsisy",
+  "POSTGRES_USER": "postgres",
+  "POSTGRES_PASSWORD": "itu16"
 }

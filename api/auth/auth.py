@@ -11,6 +11,7 @@ from fastapi import HTTPException, Depends
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer
 from google_auth_oauthlib.flow import Flow
+from config import config
 from jose import jwt, JWTError
 
 from api.db.conn import get_con
@@ -42,7 +43,7 @@ def on_auth_google(scopes: list ,user_uuid:str, type_ : dict):
 def get_cred_by_value(value):
     cursor = db.cursor()
     cursor.execute(
-        "select uuid, label, value from CredType where value = ?", (value,)
+        "select uuid, label, value from CredType where value = %s", (value,)
     )
     cred = cursor.fetchone()
     return {
@@ -93,16 +94,16 @@ def on_change_password(password: str, token: str):
     user_id = on_change_password_checking(token)
     hashed_password = hash_password(password)
     cursor = db.cursor()
-    cursor.execute("UPDATE users SET mot_de_passe = ? WHERE uuid = ?", (hashed_password, user_id))
-    cursor.execute("Delete from reset_password where token = ?", (token, ))
+    cursor.execute("UPDATE users SET mot_de_passe = %s WHERE uuid = %s", (hashed_password, user_id))
+    cursor.execute("Delete from reset_password where token = %s", (token, ))
     db.commit()
-    cursor.execute("select email from users where uuid = ?", (user_id, ))
+    cursor.execute("select email from users where uuid = %s", (user_id, ))
     user_email = cursor.fetchone()[0]
     return user_email, user_id
 
 def on_change_password_checking(token):
     cursor = db.cursor()
-    cursor.execute("SELECT user_id FROM reset_password WHERE token = ? and expire_date > datetime('now')", (token,))
+    cursor.execute("SELECT user_id FROM reset_password WHERE token = %s and expire_date > CURRENT_TIMESTAMP", (token,))
     user = cursor.fetchone()
     if user is None:
         raise HTTPException(status_code=404, detail="Token invalide")
@@ -110,14 +111,14 @@ def on_change_password_checking(token):
 
 def on_forgot_password(email):
     cursor = db.cursor()
-    cursor.execute("SELECT uuid,nom_complet FROM users WHERE email = ?", (email,))
+    cursor.execute("SELECT uuid,nom_complet FROM users WHERE email = %s", (email,))
     user = cursor.fetchone()
     if not user:
         raise HTTPException(status_code=404, detail="Email non existent")
     reset_token = str(uuid.uuid4())
     _id = str(uuid.uuid4())
     _date = datetime.now() + timedelta(minutes=15)
-    cursor.execute("insert into reset_password(id, user_id, token, expire_date) values (?, ?, ?, ?)", (_id, user[0], reset_token,_date))
+    cursor.execute("insert into reset_password(id, user_id, token, expire_date) values (%s, %s, %s, %s)", (_id, user[0], reset_token,_date))
     db.commit()
     _reset_link = f"{FRONTEND_URL}?reset-token={reset_token}"
     send_email(email, "Reset password",
@@ -137,19 +138,19 @@ L’équipe Tsisy.com""")
 def add_credentials(state, refresh_token, cred_id):
     cursor = db.cursor()
     cursor.execute(
-        "INSERT INTO user_credentials (uuid, user_uuid, refresh_token, cred_type_id) VALUES (?, ?, ?, ?)",
+        "INSERT INTO user_credentials (uuid, user_uuid, refresh_token, cred_type_id) VALUES (%s, %s, %s, %s)",
         (str(uuid.uuid4()), state, refresh_token, cred_id)
     )
     db.commit()
 
-def has_google_auth(user_id: str, db: sqlite3.Connection):
+def has_google_auth(user_id: str, db):
     cursor = db.cursor()
-    cursor.execute("SELECT refresh_token FROM user_credentials WHERE user_uuid = ?", (user_id,))
+    cursor.execute("SELECT refresh_token FROM user_credentials WHERE user_uuid = %s", (user_id,))
     return cursor.fetchone() is not None
 
 def login_user(username, password, conn):
     cursor = conn.cursor()
-    cursor.execute("SELECT uuid, email, mot_de_passe FROM users WHERE email = ?", (username,))
+    cursor.execute("SELECT uuid, email, mot_de_passe FROM users WHERE email = %s", (username,))
     user = cursor.fetchone()
     if not user or not verify_password(password, user["mot_de_passe"]):
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
@@ -157,13 +158,13 @@ def login_user(username, password, conn):
 
 def register_user(user):
     cursor = db.cursor()
-    cursor.execute("SELECT email FROM users WHERE email = ?", (user.email,))
+    cursor.execute("SELECT email FROM users WHERE email = %s", (user.email,))
     if cursor.fetchone():
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
     hashed_password = hash_password(user.mot_de_passe)
     user_id = os.urandom(16).hex()
     cursor.execute(
-        "INSERT INTO users (uuid, nom_complet, email, mot_de_passe) VALUES (?, ?, ?, ?)",
+        "INSERT INTO users (uuid, nom_complet, email, mot_de_passe) VALUES (%s, %s, %s, %s)",
         (user_id, user.nom_complet, user.email, hashed_password)
     )
     db.commit()
