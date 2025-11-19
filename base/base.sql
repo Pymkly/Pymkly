@@ -1,4 +1,4 @@
--- Active: 1760701096431@@127.0.0.1@3306
+-- Active: 1763550274256@@127.0.0.1@3306
 create table users (
     uuid text primary key
 );
@@ -191,3 +191,7 @@ SELECT uuid, name, email, numero, 0, null FROM contacts_old;
 DROP TABLE contacts_old;
 COMMIT;
 PRAGMA foreign_keys = ON;
+
+-- ajout d'une colonne pour groupe contact details 
+ALTER TABLE groupe_contacts_details ADD COLUMN type_destinataire TEXT DEFAULT "to" CHECK(type_destinataire IN ("to", "cc", "bcc"));
+

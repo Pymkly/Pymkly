@@ -83,18 +83,40 @@ def get_groupes(userid) -> ToolResponse:
 
 
 @tool
-def add_contacts_to_group(group_uuid: str, contact_uuids: list, userid: str)  -> ToolResponse:
-    """Ajoute des contacts à un groupe existant. Params: group_uuid (UUID du groupe), contact_uuids (liste d'UUIDs de contacts), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
+def add_contacts_to_group(group_uuid: str, contact_uuids: list, recipient_types: list = None, userid: str = None) -> ToolResponse:
+    """Ajoute des contacts à un groupe existant. Params: group_uuid (UUID du groupe), contact_uuids (liste d'UUIDs de contacts), recipient_types (liste optionnelle de types de destinataires : 'to', 'cc', 'bcc' pour chaque contact. Si non fourni, tous les contacts seront en 'to' par défaut), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne )."""
     try:
         cursor = conn.cursor()
+        
+        # Vérifier que le groupe appartient à l'utilisateur
+        cursor.execute("SELECT uuid FROM groupe_contacts WHERE uuid = ? AND userid = ?", (group_uuid, userid))
+        if not cursor.fetchone():
+            return ToolResponse("Erreur : Le groupe n'existe pas ou n'appartient pas à l'utilisateur")
+        
+        # Si recipient_types n'est pas fourni, tous les contacts sont en 'to' par défaut
+        if recipient_types is None:
+            recipient_types = ['to'] * len(contact_uuids)
+        elif len(recipient_types) != len(contact_uuids):
+            return ToolResponse("Erreur : recipient_types doit avoir la même longueur que contact_uuids")
+        
         # Ajouter les contacts au groupe
         added_count = 0
-        for contact_uuid in contact_uuids:
+        for i, contact_uuid in enumerate(contact_uuids):
+            # Vérifier si le contact n'est pas déjà dans le groupe
+            cursor.execute("SELECT uuid FROM groupe_contacts_details WHERE contact_uuid = ? AND groupe_contact_uuid = ?", 
+                         (contact_uuid, group_uuid))
+            if cursor.fetchone():
+                continue  # Skip si déjà présent
+            
+            recipient_type = recipient_types[i] if i < len(recipient_types) else 'to'
+            # Valider le type
+            if recipient_type not in ['to', 'cc', 'bcc']:
+                recipient_type = 'to'  # Valeur par défaut si invalide
+            
             detail_uuid = str(uuid.uuid4())
-            check_before_remove_contact_on_groupe(cursor, group_uuid, detail_uuid, userid)
             cursor.execute(
-                "INSERT INTO groupe_contacts_details (uuid, groupe_contact_uuid, contact_uuid) VALUES (?, ?, ?)",
-                (detail_uuid, group_uuid, contact_uuid))
+                "INSERT INTO groupe_contacts_details (uuid, groupe_contact_uuid, contact_uuid, type_destinataire) VALUES (?, ?, ?, ?)",
+                (detail_uuid, group_uuid, contact_uuid, recipient_type))
             added_count += 1
         conn.commit()
         return ToolResponse(f"{added_count} contact(s) ajouté(s) au groupe UUID: {group_uuid}.")
@@ -102,22 +124,34 @@ def add_contacts_to_group(group_uuid: str, contact_uuids: list, userid: str)  ->
         return ToolResponse(f"Erreur lors de l'ajout au groupe : {str(e)}")
 
 @tool
-def create_contact_group(title: str, user_uuid: str, contact_uuids: list) -> ToolResponse:
-    """Crée un groupe de contacts. Params: title (titre du groupe), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne ), contact_uuids (liste d'UUIDs de contacts)."""
+def create_contact_group(title: str, user_uuid: str, contact_uuids: list , recipient_types : list = None) -> ToolResponse:
+    """Crée un groupe de contacts. Params: title (titre du groupe), user_id (ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne ), contact_uuids (liste d'UUIDs de contacts) , recipient_types (liste optionnelle de types de destinataires : 'to', 'cc', 'bcc' pour chaque contact . Si non fourni , tous les contacts seront en to par defaut)."""
     try:
         group_id = str(uuid.uuid4())
         cursor = conn.cursor()
         cursor.execute("INSERT INTO groupe_contacts (uuid, userid, title) VALUES (?, ?, ?)", (group_id, user_uuid, title))
-        for contact_uuid in contact_uuids:
+
+        # Si recipient_types n'est pas fourni, tous les contacts sont en 'to' par défaut
+        if recipient_types is None:
+            recipient_types = ['to'] * len(contact_uuids)
+        elif len(recipient_types) != len(contact_uuids):
+            return ToolResponse("Erreur : recipient_types doit avoir la même longueur que contact_uuids")
+
+
+        for i, contact_uuid in enumerate(contact_uuids):
+            recipient_type = recipient_types[i] if i < len(recipient_types) else 'to'
+            # Valider le type
+            if recipient_type not in ['to', 'cc', 'bcc']:
+                recipient_type = 'to'  # Valeur par défaut si invalide
+            
             detail_uuid = str(uuid.uuid4())
             cursor.execute(
-                "INSERT INTO groupe_contacts_details (uuid, groupe_contact_uuid, contact_uuid) VALUES (?, ?, ?)",
-                (detail_uuid, group_id, contact_uuid))
+                "INSERT INTO groupe_contacts_details (uuid, groupe_contact_uuid, contact_uuid, type_destinataire) VALUES (?, ?, ?, ?)",
+                (detail_uuid, group_id, contact_uuid, recipient_type))
         conn.commit()
         return ToolResponse(f"Groupe créé ! UUID: {group_id} - Titre: {title} avec {len(contact_uuids)} contacts.")
     except Exception as e:
         return ToolResponse(f"Erreur lors de la création du groupe : {str(e)}")
-
 
 
 @tool
@@ -172,3 +206,26 @@ def get_contact(userid) -> ToolResponse:
         return ToolResponse(resp)
     except Exception as e:
         return ToolResponse(f"Erreur lors de la recuperation des contacts pour l utilisateur {str(userid)} : {str(e)}")
+
+def get_group_recipients_by_type(group_uuid: str, user_id: str):
+    """
+    Récupère les destinataires d'un groupe séparés par type (to, cc, bcc).
+    Retourne un dictionnaire {'to': [emails], 'cc': [emails], 'bcc': [emails]}
+    """
+    query = """
+        SELECT c.email, COALESCE(gcd.type_destinataire, 'to') as type_destinataire
+        FROM groupe_contacts_details gcd
+        JOIN contacts c ON gcd.contact_uuid = c.uuid
+        JOIN groupe_contacts gc ON gcd.groupe_contact_uuid = gc.uuid
+        WHERE gc.uuid = ? AND gc.userid = ?
+    """
+    cursor = conn.cursor()
+    cursor.execute(query, (group_uuid, user_id))
+    results = cursor.fetchall()
+    
+    recipients = {'to': [], 'cc': [], 'bcc': []}
+    for email, type_destinataire in results:
+        if type_destinataire in recipients:
+            recipients[type_destinataire].append(email)
+    
+    return recipients

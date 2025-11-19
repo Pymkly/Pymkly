@@ -160,40 +160,78 @@ def list_emails(start_date: str = None, end_date: str = None, state:str = None, 
         return ToolResponse(f"Erreur lors de la liste des mails : {str(e)}")
     
 @tool
-def send_email(to: str, subject: str, body: str, cc: list = None, bcc: list = None, attachments: list = None, user_id: str = None)  -> ToolResponse:
+def send_email(to: str = None, subject: str = None, body: str = None, cc: list = None, bcc: list = None, attachments: list = None, group_uuid: str = None, user_id: str = None) -> ToolResponse:
     """
     Envoie un email via l'API Gmail pour l'utilisateur `user_id`.
-    - to: string ou liste d'emails
+    - to: string ou liste d'emails (optionnel si group_uuid est fourni)
     - cc, bcc: list d'emails (optionnel)
     - attachments: liste de chemins de fichiers locaux (optionnel)
-    - subject: sujet de l'email
-    - body: contenu texte de l'email
+    - subject: sujet de l'email (requis)
+    - body: contenu texte de l'email (requis)
+    - group_uuid: UUID d'un groupe de contacts (optionnel). Si fourni, les contacts du groupe seront utilisés selon leur recipient_type (to/cc/bcc)
     - user_id : ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne.
     Retourne un message texte avec l'ID du message ou une erreur.
     """
     if not user_id:
         return ToolResponse("Erreur : user_id manquant.")
+    if not subject or not body:
+        return ToolResponse("Erreur : subject et body sont requis.")
+    
     try:
+        # Si group_uuid est fourni, récupérer les destinataires du groupe
+        if group_uuid:
+            from api.contact.contact_utils import get_group_recipients_by_type
+            group_recipients = get_group_recipients_by_type(group_uuid, user_id)
+            
+            # Fusionner avec les paramètres fournis (les paramètres directs ont priorité)
+            to_emails = []
+            if to:
+                if isinstance(to, (list, tuple)):
+                    to_emails = list(to)
+                else:
+                    to_emails = [to]
+            to_emails = to_emails + group_recipients['to']
+            
+            cc_emails = list(cc) if cc else []
+            cc_emails = cc_emails + group_recipients['cc']
+            
+            bcc_emails = list(bcc) if bcc else []
+            bcc_emails = bcc_emails + group_recipients['bcc']
+        else:
+            # Utiliser les paramètres directs
+            if not to:
+                return ToolResponse("Erreur : 'to' est requis si group_uuid n'est pas fourni.")
+            to_emails = []
+            if isinstance(to, (list, tuple)):
+                to_emails = list(to)
+            else:
+                to_emails = [to]
+            cc_emails = list(cc) if cc else []
+            bcc_emails = list(bcc) if bcc else []
+        
+        if not to_emails and not cc_emails and not bcc_emails:
+            return ToolResponse("Erreur : Aucun destinataire spécifié (to, cc, bcc ou group_uuid)")
+        
         svc = get_gmail_service(user_id)
-
+        
         # récupérer l'email de l'utilisateur authentifié
         profile = svc.users().getProfile(userId='me').execute()
         from_email = profile.get('emailAddress', 'me')
-
+        
         msg = EmailMessage()
-        # to peut être une chaîne ou une liste
-        if isinstance(to, (list, tuple)):
-            msg['To'] = ", ".join(to)
-        else:
-            msg['To'] = to
-        if cc:
-            msg['Cc'] = ", ".join(cc) if isinstance(cc, (list, tuple)) else cc
-        if bcc:
-            msg['Bcc'] = ", ".join(bcc) if isinstance(bcc, (list, tuple)) else bcc
+        
+        # Définir les destinataires
+        if to_emails:
+            msg['To'] = ", ".join(to_emails)
+        if cc_emails:
+            msg['Cc'] = ", ".join(cc_emails)
+        if bcc_emails:
+            msg['Bcc'] = ", ".join(bcc_emails)
+        
         msg['From'] = from_email
         msg['Subject'] = subject or ""
         msg.set_content(body or "")
-
+        
         # attachments: chemins de fichiers locaux
         if attachments:
             for path in attachments:
@@ -210,7 +248,7 @@ def send_email(to: str, subject: str, body: str, cc: list = None, bcc: list = No
                 except Exception:
                     # ignore a bad attachment and continue
                     continue
-
+        
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         resp = svc.users().messages().send(userId='me', body={'raw': raw}).execute()
         return ToolResponse(f"Message envoyé ! ID: {resp.get('id')}")
