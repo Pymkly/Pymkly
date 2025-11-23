@@ -18,7 +18,8 @@ CREATE TABLE CredType (
 );
 
 INSERT INTO CredType(uuid, label, value) VALUES
-    ('a468b915-0ea1-476c-990f-78233f888422', 'Calendar', 1);
+    ('a468b915-0ea1-476c-990f-78233f888422', 'Calendar', 1),
+    ('a468b915-0ea1-476c-990f-78233f888423', 'Gmail', 50);
 
 -- Table user_credentials
 CREATE TABLE user_credentials (
@@ -143,3 +144,20 @@ CREATE INDEX idx_contacts_userid ON contacts(userid);
 CREATE INDEX idx_groupe_contacts_userid ON groupe_contacts(userid);
 CREATE INDEX idx_threads_user_uuid ON threads(user_uuid);
 CREATE INDEX idx_discussion_messages_thread_id ON discussion_messages(thread_id);
+
+-- Table checkpoints pour LangGraph PostgresSaver
+CREATE TABLE IF NOT EXISTS checkpoints (
+    thread_id TEXT NOT NULL,
+    checkpoint_ns TEXT NOT NULL DEFAULT '',
+    checkpoint_id TEXT NOT NULL,
+    checkpoint JSONB NOT NULL,
+    parent_checkpoint_id TEXT,
+    metadata JSONB,
+    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
+);
+
+-- Index pour la table checkpoints
+CREATE INDEX IF NOT EXISTS idx_checkpoints_thread_id ON checkpoints(thread_id, checkpoint_ns);
+CREATE INDEX IF NOT EXISTS idx_checkpoints_parent ON checkpoints(parent_checkpoint_id);
+
+drop table checkpoints;

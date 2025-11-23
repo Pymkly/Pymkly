@@ -11,7 +11,7 @@ from config import config
 
 from api.agent.tool_model import ToolResponse
 from api.agent.usual_tools import tools, tool_names
-from api.db.conn import get_con
+from api.db.conn import get_con_psycopg3
 from api.utils.utils import get_main_instruction
 
 
@@ -92,11 +92,20 @@ workflow.add_edge(START, "model")
 workflow.add_conditional_edges("model", route_tools, {"tools": "tools", END: END})
 workflow.add_edge("tools", "model")
 
-# memory = MemorySaver()
-postgres_url = f"postgresql://{config.get('POSTGRES_USER', 'postgres')}:{config.get('POSTGRES_PASSWORD', 'itu16')}@{config.get('POSTGRES_HOST', 'localhost')}:{config.get('POSTGRES_PORT', '5432')}/{config.get('POSTGRES_DB', 'tsisy')}"
 
-# Initialiser PostgresSaver avec l'URL de connexion
-memory = PostgresSaver(postgres_url)
+postgres_conn = get_con_psycopg3()
+memory = PostgresSaver(postgres_conn)
+
+# Créer automatiquement toutes les tables nécessaires (checkpoints + checkpoint_blobs)
+try:
+    memory.setup()  # Crée checkpoints ET checkpoint_blobs automatiquement
+    postgres_conn.commit()
+except Exception as e:
+    postgres_conn.rollback()
+    print(f"Erreur lors de setup(): {e}")
+    # Si setup() échoue, vous pouvez créer manuellement les tables
+    raise
+
 agent_app = workflow.compile(checkpointer=memory)
 instruction = get_main_instruction()
 

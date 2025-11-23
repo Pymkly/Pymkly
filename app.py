@@ -119,7 +119,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             "access_token": access_token,
             "token_type": "bearer",
             "message": "Connecté ! Voulez-vous lier votre Google Calendar ?",
-            "next_step": f"/auth/google?user_uuid={user['uuid']}&prompt=connect_google",
+            "next_step": f"/auth/calendar?user_uuid={user['uuid']}&prompt=connect_google",
             "uuid": user["uuid"]  # Ajout de l'UUID
         }
     db.close()

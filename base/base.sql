@@ -1,4 +1,7 @@
 -- Active: 1763550274256@@127.0.0.1@3306
+
+
+
 create table users (
     uuid text primary key
 );
