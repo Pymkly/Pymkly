@@ -23,11 +23,11 @@ def get_con(row=False):
     """
     # Récupérer les paramètres de connexion depuis config ou variables d'environnement
     db_config = {
-        'host': 'localhost',
-        'port': '5433',
-        'database': 'tsisy',
-        'user': 'postgres',
-        'password': 'itu16'
+        'host': config.get('POSTGRES_HOST', 'localhost'),
+        'port': config.get('POSTGRES_PORT', '5433'),
+        'database': config.get('POSTGRES_DB', 'tsisy'),
+        'user': config.get('POSTGRES_USER', 'postgres'),
+        'password': config.get('POSTGRES_PASSWORD', 'itu16')
     }
     
     conn = psycopg2.connect(**db_config)
