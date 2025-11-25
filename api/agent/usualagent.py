@@ -67,14 +67,14 @@ def invoke_tool(tool, tool_call, state: CustomMessageState, tool_messages, tool_
             result = ToolResponse("Donne ta reponse finale.")
         
         # Enregistrer l'historique pour toutes les actions
-        # try:
-        #     user_uuid = tool_call["args"].get("userid")
-        #     if user_uuid:
-        #         action_description = format_history_action(tool_name, tool_call["args"], result)
-        #         if action_description:  # Ne pas enregistrer si description vide
-        #             add_history_entry(user_uuid, action_description)
-        # except Exception as e:
-        #     print(f"Erreur lors de l'enregistrement de l'historique: {e}")
+        try:
+            user_uuid =tool_call["args"].get("user_id") or tool_call["args"].get("userid")
+            if user_uuid:
+                action_description = format_history_action(tool_name, tool_call["args"], result)
+                if action_description:  # Ne pas enregistrer si description vide
+                    add_history_entry(user_uuid, action_description)
+        except Exception as e:
+            print(f"Erreur lors de l'enregistrement de l'historique: {e}")
         
         tool_messages.append(ToolMessage(
             content=result.response,

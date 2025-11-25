@@ -155,7 +155,6 @@ def get_answer(request: AnswerRequest = Body(...), current_user: str = Depends(g
     try:
         user = request.thread_id
         print(user)
-        print("user before" , user)
         logger.info(f"Requête reçue : text='{request.text}', thread_id={user}")
         _id_discussion = str(uuid.uuid4())
         user, result, suggestions, metadata_ = answer(request.text, user, current_user, request.clientTime, request.timeZone, _id_discussion)
@@ -163,7 +162,6 @@ def get_answer(request: AnswerRequest = Body(...), current_user: str = Depends(g
         db = get_con()
         cursor = db.cursor()
         _id = str(uuid.uuid4())
-        print("user here ", user)
         save_message(_id, user, "user", request.text, cursor)
         save_message(_id_discussion, user, "bot", result, cursor)
         db.commit()
