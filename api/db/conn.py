@@ -24,7 +24,7 @@ def get_con(row=False):
     # Récupérer les paramètres de connexion depuis config ou variables d'environnement
     db_config = {
         'host': 'localhost',
-        'port': '5432',
+        'port': '5433',
         'database': 'tsisy',
         'user': 'postgres',
         'password': 'itu16'

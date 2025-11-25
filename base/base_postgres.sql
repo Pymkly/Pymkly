@@ -32,6 +32,19 @@ CREATE TABLE user_credentials (
     FOREIGN KEY (cred_type_id) REFERENCES CredType(uuid) ON DELETE CASCADE
 );
 
+-- Table type_contact
+CREATE TABLE type_contact (
+    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nom VARCHAR(255) NOT NULL,
+    description TEXT
+);
+
+INSERT INTO type_contact (nom, description) VALUES
+    ('Personnel', 'Contacts personnels'),
+    ('Professionnel', 'Contacts professionnels'),
+    ('client', 'Contacts clients'),
+    ('Famille', 'Contacts familiaux');
+
 -- Table contacts
 CREATE TABLE contacts (
     uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -113,18 +126,6 @@ CREATE TABLE reset_password (
     FOREIGN KEY (user_id) REFERENCES users(uuid) ON DELETE CASCADE
 );
 
--- Table type_contact
-CREATE TABLE type_contact (
-    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nom VARCHAR(255) NOT NULL,
-    description TEXT
-);
-
-INSERT INTO type_contact (nom, description) VALUES
-    ('Personnel', 'Contacts personnels'),
-    ('Professionnel', 'Contacts professionnels'),
-    ('client', 'Contacts clients'),
-    ('Famille', 'Contacts familiaux');
 
 -- Vue v_user_credentials
 CREATE OR REPLACE VIEW v_user_credentials AS
