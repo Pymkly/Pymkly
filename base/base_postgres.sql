@@ -145,19 +145,19 @@ CREATE INDEX idx_groupe_contacts_userid ON groupe_contacts(userid);
 CREATE INDEX idx_threads_user_uuid ON threads(user_uuid);
 CREATE INDEX idx_discussion_messages_thread_id ON discussion_messages(thread_id);
 
--- Table checkpoints pour LangGraph PostgresSaver
-CREATE TABLE IF NOT EXISTS checkpoints (
-    thread_id TEXT NOT NULL,
-    checkpoint_ns TEXT NOT NULL DEFAULT '',
-    checkpoint_id TEXT NOT NULL,
-    checkpoint JSONB NOT NULL,
-    parent_checkpoint_id TEXT,
-    metadata JSONB,
-    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
+-- Table history pour l'historique des actions utilisateur
+CREATE TABLE historique (
+    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_uuid UUID NOT NULL,
+    action TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_uuid) REFERENCES users(uuid) ON DELETE CASCADE
 );
 
--- Index pour la table checkpoints
-CREATE INDEX IF NOT EXISTS idx_checkpoints_thread_id ON checkpoints(thread_id, checkpoint_ns);
-CREATE INDEX IF NOT EXISTS idx_checkpoints_parent ON checkpoints(parent_checkpoint_id);
+-- Index pour améliorer les performances des requêtes d'historique
+CREATE INDEX idx_history_user_uuid ON historique(user_uuid);
+CREATE INDEX idx_history_created_at ON historique(created_at DESC);
 
-drop table checkpoints;
+
+
+

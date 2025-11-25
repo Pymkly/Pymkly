@@ -20,6 +20,7 @@ from api.calendar.calendar_utils import SCOPES_CALENDAR, SCOPES_GMAIL, SCOPES_TA
 from api.db.conn import get_con
 from api.threads.threads import save_message, get_all_threads, get_one_threads, generate_conversation
 from config import config
+from api.historique.historique_utils import get_user_history, add_history_entry
 
 logging.basicConfig(level=logging.INFO)
 FRONTEND_URL = config["FRONTEND_URL"]
@@ -154,6 +155,7 @@ def get_answer(request: AnswerRequest = Body(...), current_user: str = Depends(g
     try:
         user = request.thread_id
         print(user)
+        print("user before" , user)
         logger.info(f"Requête reçue : text='{request.text}', thread_id={user}")
         _id_discussion = str(uuid.uuid4())
         user, result, suggestions, metadata_ = answer(request.text, user, current_user, request.clientTime, request.timeZone, _id_discussion)
@@ -161,6 +163,7 @@ def get_answer(request: AnswerRequest = Body(...), current_user: str = Depends(g
         db = get_con()
         cursor = db.cursor()
         _id = str(uuid.uuid4())
+        print("user here ", user)
         save_message(_id, user, "user", request.text, cursor)
         save_message(_id_discussion, user, "bot", result, cursor)
         db.commit()
@@ -228,6 +231,25 @@ def build_messages(user_uuid, clientTime, timeZone, discussion_id, text, thread_
     current = get_last_messages(config)
     messages = current + [HumanMessage(content=_instru), HumanMessage(content=text)]
     return messages, config, is_new
+
+@app.get("/history")
+def get_history(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Récupère l'historique de l'utilisateur connecté
+    """
+    try:
+        history = get_user_history(current_user, limit=limit, offset=offset)
+        return {
+            "success": True,
+            "data": history,
+            "count": len(history)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/agent/stream")
 def stream_agent(

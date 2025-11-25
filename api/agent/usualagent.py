@@ -13,7 +13,7 @@ from api.agent.tool_model import ToolResponse
 from api.agent.usual_tools import tools, tool_names
 from api.db.conn import get_con_psycopg3
 from api.utils.utils import get_main_instruction
-
+from api.historique.historique_utils import add_history_entry
 
 class CustomMessageState(MessagesState):
     suggestions: List[str]
@@ -65,6 +65,17 @@ def invoke_tool(tool, tool_call, state: CustomMessageState, tool_messages, tool_
         if tool_name == "add_suggestions":
             state["suggestions"] = tool_call["args"]["suggestions"]
             result = ToolResponse("Donne ta reponse finale.")
+        
+        # Enregistrer l'historique pour toutes les actions
+        # try:
+        #     user_uuid = tool_call["args"].get("userid")
+        #     if user_uuid:
+        #         action_description = format_history_action(tool_name, tool_call["args"], result)
+        #         if action_description:  # Ne pas enregistrer si description vide
+        #             add_history_entry(user_uuid, action_description)
+        # except Exception as e:
+        #     print(f"Erreur lors de l'enregistrement de l'historique: {e}")
+        
         tool_messages.append(ToolMessage(
             content=result.response,
             tool_call_id=tool_call["id"],
@@ -72,10 +83,104 @@ def invoke_tool(tool, tool_call, state: CustomMessageState, tool_messages, tool_
         ))
     except Exception as e:
         tool_messages.append(ToolMessage(
-            content=f"Erreur dans {tool_name}: {str(e)}",  # Renvoie l'erreur
+            content=f"Erreur dans {tool_name}: {str(e)}",
             tool_call_id=tool_call["id"],
             name=tool_name
         ))
+
+
+def format_history_action(tool_name: str, args: dict, result: ToolResponse) -> str:
+    """
+    Formate une description d'action pour l'historique basée sur le tool et ses arguments
+    
+    Args:
+        tool_name: Nom du tool appelé
+        args: Arguments passés au tool
+        result: Résultat du tool
+        
+    Returns:
+        str: Description formatée de l'action
+    """
+    user_id = args.get("user_id") or args.get("userid")
+    
+    # Actions de création
+    if tool_name == "add_contact":
+        return f"Contact créé : {args.get('name', 'N/A')} ({args.get('email', 'N/A')})"
+    
+    elif tool_name == "create_contact_group":
+        return f"Groupe de contacts créé : {args.get('title', 'N/A')}"
+    
+    elif tool_name == "create_calendar_event":
+        return f"Événement créé : {args.get('summary', 'N/A')} - {args.get('start', 'N/A')}"
+    
+    elif tool_name == "create_calendar_task":
+        return f"Tâche créée : {args.get('summary', 'N/A')}"
+    
+    elif tool_name == "send_email":
+        to_list = args.get('to', [])
+        if isinstance(to_list, str):
+            to_list = [to_list]
+        recipients = ', '.join(to_list[:3])  # Limiter à 3 pour la lisibilité
+        if len(to_list) > 3:
+            recipients += f" et {len(to_list) - 3} autre(s)"
+        return f"Email envoyé à : {recipients} - Sujet: {args.get('subject', 'N/A')}"
+    
+    # Actions de modification
+    elif tool_name == "change_contact":
+        return f"Contact modifié : {args.get('contact_uuid', 'N/A')}"
+    
+    elif tool_name == "update_calendar_event":
+        return f"Événement modifié : {args.get('event_id', 'N/A')}"
+    
+    elif tool_name == "add_contacts_to_group":
+        group_uuid = args.get('group_uuid', 'N/A')
+        contact_count = len(args.get('contact_uuids', []))
+        return f"{contact_count} contact(s) ajouté(s) au groupe : {group_uuid}"
+    
+    elif tool_name == "add_attendee":
+        return f"Participant ajouté à l'événement : {args.get('event_id', 'N/A')}"
+    
+    elif tool_name == "remove_attendee":
+        return f"Participant retiré de l'événement : {args.get('event_id', 'N/A')}"
+    
+    # Actions de suppression
+    elif tool_name == "remove_contact_on_groupe":
+        return f"Contact retiré du groupe : {args.get('groupe_contact_uuid', 'N/A')}"
+    
+    elif tool_name == "remove_contact_group":
+        return f"Groupe de contacts supprimé : {args.get('groupe_contact_uuid', 'N/A')}"
+    
+    elif tool_name == "delete_calendar_event":
+        return f"Événement supprimé : {args.get('event_id', 'N/A')}"
+    
+    elif tool_name == "create_conversation":
+        return f"Conversation créée : {args.get('label', 'N/A')}"
+    
+    # Actions de lecture (GET/LIST)
+    elif tool_name == "get_contact":
+        return f"Consultation des contacts"
+    
+    elif tool_name == "get_groupes":
+        return f"Consultation des groupes de contacts"
+    
+    elif tool_name == "list_calendar_events":
+        start_date = args.get('start_date', 'N/A')
+        end_date = args.get('end_date', 'N/A')
+        date_range = f"du {start_date} au {end_date}" if start_date != 'N/A' and end_date != 'N/A' else ""
+        return f"Consultation des événements du calendrier {date_range}".strip()
+    
+    elif tool_name == "list_emails":
+        box = args.get('box', 'inbox')
+        max_results = args.get('max_results', '50')
+        from_email = args.get('from_email', '')
+        search_info = f"dans {box}"
+        if from_email:
+            search_info += f" de {from_email}"
+        search_info += f" (max {max_results})"
+        return f"Consultation des emails {search_info}"
+    
+    # Par défaut, enregistrer avec le nom du tool
+    return f"Action : {tool_name}"
 
 
 # # Routage pour gérer les tools
