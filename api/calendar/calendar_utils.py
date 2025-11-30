@@ -15,6 +15,7 @@ from api.db.conn import get_con
 SCOPES_CALENDAR = ['https://www.googleapis.com/auth/calendar' , ]
 SCOPES_TASKS = ['https://www.googleapis.com/auth/tasks']
 SCOPES_GMAIL = ['https://mail.google.com/']
+SCOPES_DRIVE = ['https://www.googleapis.com/auth/drive']
 CREDENTIALS_FILE = "credentials.json"
 SERVICES = {}
 
