@@ -563,3 +563,109 @@ def remove_drive_file_permission(file_id: str, permission_id: str = None, email:
         return ToolResponse(f"Erreur Google Drive API : {error_details}")
     except Exception as e:
         return ToolResponse(f"Erreur lors de la révocation de la permission : {str(e)}")
+
+@tool
+def update_drive_file_permission(file_id: str, permission_id: str = None, email: str = None, new_role: str = "reader", user_id: str = None) -> ToolResponse:
+    """
+    Modifie le rôle d'une permission existante d'un fichier ou dossier Google Drive.
+    - file_id : ID du fichier/dossier
+    - permission_id : ID de la permission à modifier (prioritaire si fourni)
+    - email : Email de l'utilisateur dont on veut modifier la permission (utilisé si permission_id n'est pas fourni)
+    - new_role : Nouveau rôle à attribuer : "reader" (lecture seule), "commenter" (peut commenter), "writer" (peut modifier), "owner" (propriétaire). Défaut : "reader"
+    - user_id : ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne.
+    
+    Note : Vous devez fournir soit permission_id, soit email. permission_id a la priorité.
+    Note : Pour changer une permission en "owner", vous devez être le propriétaire actuel du fichier.
+    """
+    if not user_id:
+        return ToolResponse("Erreur : user_id manquant.")
+    if not file_id:
+        return ToolResponse("Erreur : file_id manquant.")
+    if not permission_id and not email:
+        return ToolResponse("Erreur : permission_id ou email requis.")
+    
+    # Valider le rôle
+    valid_roles = ["reader", "commenter", "writer", "owner"]
+    if new_role not in valid_roles:
+        return ToolResponse(f"Erreur : rôle invalide. Rôles valides : {', '.join(valid_roles)}")
+    
+    try:
+        service = get_drive_service(user_id)
+        
+        # Si email est fourni mais pas permission_id, chercher la permission
+        if not permission_id and email:
+            import re
+            if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
+                return ToolResponse(f"Erreur : email '{email}' n'est pas valide.")
+            
+            # Récupérer toutes les permissions
+            permissions = service.permissions().list(fileId=file_id, fields='permissions(id, type, role, emailAddress)').execute()
+            permission_list = permissions.get('permissions', [])
+            
+            # Chercher la permission correspondant à l'email
+            found_permission = None
+            for perm in permission_list:
+                if perm.get('type') == 'user' and perm.get('emailAddress') == email:
+                    found_permission = perm
+                    break
+            
+            if not found_permission:
+                return ToolResponse(f"Erreur : Aucune permission trouvée pour l'email '{email}' sur ce fichier.")
+            
+            permission_id = found_permission.get('id')
+            old_role = found_permission.get('role', 'N/A')
+        
+        # Si permission_id est fourni directement, récupérer l'ancien rôle pour l'affichage
+        else:
+            try:
+                perm_info = service.permissions().get(fileId=file_id, permissionId=permission_id, fields='role').execute()
+                old_role = perm_info.get('role', 'N/A')
+            except:
+                old_role = 'N/A'
+        
+        # Préparer la mise à jour de la permission
+        permission_body = {
+            'role': new_role
+        }
+        
+        # Mettre à jour la permission
+        updated_permission = service.permissions().update(
+            fileId=file_id,
+            permissionId=permission_id,
+            body=permission_body
+        ).execute()
+        
+        # Récupérer le nom du fichier pour le message
+        file_info = service.files().get(fileId=file_id, fields='name').execute()
+        file_name = file_info.get('name', 'Fichier')
+        
+        role_display = {
+            'reader': 'Lecteur',
+            'commenter': 'Commentateur',
+            'writer': 'Éditeur',
+            'owner': 'Propriétaire'
+        }
+        
+        old_role_display = role_display.get(old_role, old_role)
+        new_role_display = role_display.get(new_role, new_role)
+        
+        identifier = email if email else f"permission_id: {permission_id}"
+        
+        return ToolResponse(f"Permission modifiée avec succès !\n"
+                          f"  Fichier : {file_name}\n"
+                          f"  File ID : {file_id}\n"
+                          f"  Permission : {identifier}\n"
+                          f"  Ancien rôle : {old_role_display}\n"
+                          f"  Nouveau rôle : {new_role_display}")
+        
+    except HttpError as he:
+        error_details = str(he)
+        if "insufficientFilePermissions" in error_details or "403" in error_details:
+            return ToolResponse(f"Erreur : Permissions insuffisantes pour modifier cette permission. {error_details}")
+        elif "notFound" in error_details.lower() or "404" in error_details:
+            return ToolResponse(f"Erreur : Fichier ou permission non trouvé. {error_details}")
+        elif "badRequest" in error_details.lower() or "400" in error_details:
+            return ToolResponse(f"Erreur : Requête invalide. Vérifiez que le rôle est valide et que vous avez les droits nécessaires. {error_details}")
+        return ToolResponse(f"Erreur Google Drive API : {error_details}")
+    except Exception as e:
+        return ToolResponse(f"Erreur lors de la modification de la permission : {str(e)}")
