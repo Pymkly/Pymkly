@@ -116,11 +116,11 @@ def list_drive_files(folder_id: str = None, query: str = None, max_results: int 
             
             # Déterminer le type
             if mime_type == 'application/vnd.google-apps.folder':
-                file_type = "📁 Dossier"
+                file_type = "Dossier"
             elif 'google-apps' in mime_type:
-                file_type = f"📄 Google {mime_type.split('.')[-1].capitalize()}"
+                file_type = f"Google {mime_type.split('.')[-1].capitalize()}"
             else:
-                file_type = "📄 Fichier"
+                file_type = "Fichier"
             
             # Taille
             size = file.get('size')
@@ -226,7 +226,7 @@ def get_drive_storage_info(user_id: str = None) -> ToolResponse:
         if user_info.get('emailAddress'):
             result_lines.append(f"Utilisateur : {user_info.get('emailAddress')}\n")
         
-        result_lines.append("\n💾 Stockage :\n")
+        result_lines.append("\n Stockage :\n")
         
         if limit:
             result_lines.append(f"  Quota total : {format_bytes(limit)}\n")
@@ -261,3 +261,305 @@ def get_drive_storage_info(user_id: str = None) -> ToolResponse:
         return ToolResponse(f"Erreur Google Drive API : {error_details}")
     except Exception as e:
         return ToolResponse(f"Erreur lors de la récupération des informations de stockage : {str(e)}")
+
+@tool
+def share_drive_file(file_id: str, email: str, role: str = "reader", send_notification: bool = True, user_id: str = None) -> ToolResponse:
+    """
+    Partage un fichier ou dossier Google Drive avec un utilisateur spécifique.
+    - file_id : ID du fichier/dossier à partager
+    - email : Adresse email de l'utilisateur avec qui partager
+    - role : Rôle à attribuer : "reader" (lecture seule), "commenter" (peut commenter), "writer" (peut modifier), "owner" (propriétaire). Défaut : "reader"
+    - send_notification : Si True (défaut), envoie un email de notification à l'utilisateur
+    - user_id : ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne.
+    """
+    if not user_id:
+        return ToolResponse("Erreur : user_id manquant.")
+    if not file_id:
+        return ToolResponse("Erreur : file_id manquant.")
+    if not email:
+        return ToolResponse("Erreur : email manquant.")
+    
+    # Valider le rôle
+    valid_roles = ["reader", "commenter", "writer", "owner"]
+    if role not in valid_roles:
+        return ToolResponse(f"Erreur : rôle invalide. Rôles valides : {', '.join(valid_roles)}")
+    
+    # Valider l'email
+    import re
+    if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
+        return ToolResponse(f"Erreur : email '{email}' n'est pas valide.")
+    
+    try:
+        service = get_drive_service(user_id)
+        
+        # Créer la permission
+        permission = {
+            'type': 'user',
+            'role': role,
+            'emailAddress': email
+        }
+        
+        # Paramètres pour la création de permission
+        params = {
+            'fileId': file_id,
+            'body': permission,
+            'sendNotificationEmail': send_notification
+        }
+        
+        # Créer la permission
+        created_permission = service.permissions().create(**params).execute()
+        
+        permission_id = created_permission.get('id', 'N/A')
+        role_display = {
+            'reader': 'Lecteur',
+            'commenter': 'Commentateur',
+            'writer': 'Éditeur',
+            'owner': 'Propriétaire'
+        }.get(role, role)
+        
+        notification_msg = " (notification envoyée)" if send_notification else " (sans notification)"
+        
+        return ToolResponse(f"Fichier partagé avec succès !\n"
+                          f"  File ID : {file_id}\n"
+                          f"  Email : {email}\n"
+                          f"  Rôle : {role_display}\n"
+                          f"  Permission ID : {permission_id}{notification_msg}")
+        
+    except HttpError as he:
+        error_details = str(he)
+        if "insufficientFilePermissions" in error_details or "403" in error_details:
+            return ToolResponse(f"Erreur : Permissions insuffisantes pour partager ce fichier. {error_details}")
+        elif "notFound" in error_details.lower() or "404" in error_details:
+            return ToolResponse(f"Erreur : Fichier non trouvé (file_id: {file_id}). {error_details}")
+        return ToolResponse(f"Erreur Google Drive API : {error_details}")
+    except Exception as e:
+        return ToolResponse(f"Erreur lors du partage du fichier : {str(e)}")
+
+@tool
+def share_drive_file_by_link(file_id: str, role: str = "reader", allow_anyone: bool = True, user_id: str = None) -> ToolResponse:
+    """
+    Crée un lien de partage pour un fichier ou dossier Google Drive.
+    - file_id : ID du fichier/dossier à partager
+    - role : Rôle à attribuer : "reader" (lecture seule), "commenter" (peut commenter), "writer" (peut modifier). Défaut : "reader"
+    - allow_anyone : Si True (défaut), le lien est accessible à toute personne possédant le lien. Si False, seulement les utilisateurs spécifiques peuvent accéder
+    - user_id : ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne.
+    """
+    if not user_id:
+        return ToolResponse("Erreur : user_id manquant.")
+    if not file_id:
+        return ToolResponse("Erreur : file_id manquant.")
+    
+    # Valider le rôle (owner n'est pas valide pour les liens)
+    valid_roles = ["reader", "commenter", "writer"]
+    if role not in valid_roles:
+        return ToolResponse(f"Erreur : rôle invalide pour un lien de partage. Rôles valides : {', '.join(valid_roles)}")
+    
+    try:
+        service = get_drive_service(user_id)
+        
+        # Créer la permission pour "anyone"
+        permission = {
+            'type': 'anyone' if allow_anyone else 'domain',
+            'role': role
+        }
+        
+        # Créer la permission
+        created_permission = service.permissions().create(
+            fileId=file_id,
+            body=permission
+        ).execute()
+        
+        # Récupérer les informations du fichier pour obtenir le lien de partage
+        file_info = service.files().get(fileId=file_id, fields='webViewLink, webContentLink, name').execute()
+        file_name = file_info.get('name', 'Fichier')
+        web_view_link = file_info.get('webViewLink', 'N/A')
+        web_content_link = file_info.get('webContentLink', 'N/A')
+        
+        permission_id = created_permission.get('id', 'N/A')
+        role_display = {
+            'reader': 'Lecteur',
+            'commenter': 'Commentateur',
+            'writer': 'Éditeur'
+        }.get(role, role)
+        
+        access_type = "Toute personne avec le lien" if allow_anyone else "Utilisateurs du domaine"
+        
+        result_lines = [
+            f"Lien de partage créé avec succès !\n",
+            f"  Fichier : {file_name}\n",
+            f"  File ID : {file_id}\n",
+            f"  Rôle : {role_display}\n",
+            f"  Accès : {access_type}\n",
+            f"  Permission ID : {permission_id}\n",
+            f"\nLiens :\n",
+            f"  Lien de visualisation : {web_view_link}\n"
+        ]
+        
+        if web_content_link != 'N/A':
+            result_lines.append(f"  Lien de téléchargement : {web_content_link}\n")
+        
+        return ToolResponse("".join(result_lines))
+        
+    except HttpError as he:
+        error_details = str(he)
+        if "insufficientFilePermissions" in error_details or "403" in error_details:
+            return ToolResponse(f"Erreur : Permissions insuffisantes pour partager ce fichier. {error_details}")
+        elif "notFound" in error_details.lower() or "404" in error_details:
+            return ToolResponse(f"Erreur : Fichier non trouvé (file_id: {file_id}). {error_details}")
+        return ToolResponse(f"Erreur Google Drive API : {error_details}")
+    except Exception as e:
+        return ToolResponse(f"Erreur lors de la création du lien de partage : {str(e)}")
+
+@tool
+def list_drive_file_permissions(file_id: str, user_id: str = None) -> ToolResponse:
+    """
+    Liste toutes les permissions d'un fichier ou dossier Google Drive.
+    - file_id : ID du fichier/dossier dont on veut voir les permissions
+    - user_id : ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne.
+    """
+    if not user_id:
+        return ToolResponse("Erreur : user_id manquant.")
+    if not file_id:
+        return ToolResponse("Erreur : file_id manquant.")
+    
+    try:
+        service = get_drive_service(user_id)
+        
+        # Récupérer les informations du fichier
+        file_info = service.files().get(fileId=file_id, fields='name, permissions').execute()
+        file_name = file_info.get('name', 'Fichier')
+        
+        # Récupérer toutes les permissions
+        permissions = service.permissions().list(fileId=file_id, fields='permissions(id, type, role, emailAddress, displayName, domain)').execute()
+        permission_list = permissions.get('permissions', [])
+        
+        if not permission_list:
+            return ToolResponse(f"Aucune permission trouvée pour le fichier '{file_name}' (ID: {file_id}).")
+        
+        # Formater les résultats
+        result_lines = [
+            f"Permissions pour '{file_name}' (ID: {file_id})\n",
+            f"Total : {len(permission_list)} permission(s)\n\n"
+        ]
+        
+        role_display = {
+            'reader': 'Lecteur',
+            'commenter': 'Commentateur',
+            'writer': 'Éditeur',
+            'owner': 'Propriétaire'
+        }
+        
+        type_display = {
+            'user': 'Utilisateur',
+            'group': 'Groupe',
+            'domain': 'Domaine',
+            'anyone': 'Tous'
+        }
+        
+        for perm in permission_list:
+            perm_id = perm.get('id', 'N/A')
+            perm_type = perm.get('type', 'N/A')
+            perm_role = perm.get('role', 'N/A')
+            email = perm.get('emailAddress', 'N/A')
+            display_name = perm.get('displayName', 'N/A')
+            domain = perm.get('domain', 'N/A')
+            
+            result_lines.append(f"{type_display.get(perm_type, '?')} - {role_display.get(perm_role, perm_role)}\n")
+            result_lines.append(f"  Permission ID : {perm_id}\n")
+            
+            if perm_type == 'user':
+                if display_name != 'N/A':
+                    result_lines.append(f"  Nom : {display_name}\n")
+                if email != 'N/A':
+                    result_lines.append(f"  Email : {email}\n")
+            elif perm_type == 'group':
+                if display_name != 'N/A':
+                    result_lines.append(f"  Groupe : {display_name}\n")
+                if email != 'N/A':
+                    result_lines.append(f"  Email : {email}\n")
+            elif perm_type == 'domain':
+                if domain != 'N/A':
+                    result_lines.append(f"  Domaine : {domain}\n")
+            elif perm_type == 'anyone':
+                result_lines.append(f"  Accès : Toute personne avec le lien\n")
+            
+            result_lines.append("\n")
+        
+        return ToolResponse("".join(result_lines))
+        
+    except HttpError as he:
+        error_details = str(he)
+        if "insufficientFilePermissions" in error_details or "403" in error_details:
+            return ToolResponse(f"Erreur : Permissions insuffisantes pour voir les permissions de ce fichier. {error_details}")
+        elif "notFound" in error_details.lower() or "404" in error_details:
+            return ToolResponse(f"Erreur : Fichier non trouvé (file_id: {file_id}). {error_details}")
+        return ToolResponse(f"Erreur Google Drive API : {error_details}")
+    except Exception as e:
+        return ToolResponse(f"Erreur lors de la récupération des permissions : {str(e)}")
+
+@tool
+def remove_drive_file_permission(file_id: str, permission_id: str = None, email: str = None, user_id: str = None) -> ToolResponse:
+    """
+    Révoque une permission d'un fichier ou dossier Google Drive.
+    - file_id : ID du fichier/dossier
+    - permission_id : ID de la permission à révoquer (prioritaire si fourni)
+    - email : Email de l'utilisateur dont on veut révoquer la permission (utilisé si permission_id n'est pas fourni)
+    - user_id : ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne.
+    
+    Note : Vous devez fournir soit permission_id, soit email. permission_id a la priorité.
+    """
+    if not user_id:
+        return ToolResponse("Erreur : user_id manquant.")
+    if not file_id:
+        return ToolResponse("Erreur : file_id manquant.")
+    if not permission_id and not email:
+        return ToolResponse("Erreur : permission_id ou email requis.")
+    
+    try:
+        service = get_drive_service(user_id)
+        
+        # Si email est fourni mais pas permission_id, chercher la permission
+        if not permission_id and email:
+            import re
+            if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
+                return ToolResponse(f"Erreur : email '{email}' n'est pas valide.")
+            
+            # Récupérer toutes les permissions
+            permissions = service.permissions().list(fileId=file_id, fields='permissions(id, type, emailAddress)').execute()
+            permission_list = permissions.get('permissions', [])
+            
+            # Chercher la permission correspondant à l'email
+            found_permission = None
+            for perm in permission_list:
+                if perm.get('type') == 'user' and perm.get('emailAddress') == email:
+                    found_permission = perm
+                    break
+            
+            if not found_permission:
+                return ToolResponse(f"Erreur : Aucune permission trouvée pour l'email '{email}' sur ce fichier.")
+            
+            permission_id = found_permission.get('id')
+        
+        # Supprimer la permission
+        service.permissions().delete(fileId=file_id, permissionId=permission_id).execute()
+        
+        # Récupérer le nom du fichier pour le message
+        file_info = service.files().get(fileId=file_id, fields='name').execute()
+        file_name = file_info.get('name', 'Fichier')
+        
+        identifier = email if email else f"permission_id: {permission_id}"
+        
+        return ToolResponse(f"Permission révoquée avec succès !\n"
+                          f"  Fichier : {file_name}\n"
+                          f"  File ID : {file_id}\n"
+                          f"  Permission révoquée : {identifier}")
+        
+    except HttpError as he:
+        error_details = str(he)
+        if "insufficientFilePermissions" in error_details or "403" in error_details:
+            return ToolResponse(f"Erreur : Permissions insuffisantes pour révoquer cette permission. {error_details}")
+        elif "notFound" in error_details.lower() or "404" in error_details:
+            return ToolResponse(f"Erreur : Fichier ou permission non trouvé. {error_details}")
+        return ToolResponse(f"Erreur Google Drive API : {error_details}")
+    except Exception as e:
+        return ToolResponse(f"Erreur lors de la révocation de la permission : {str(e)}")
