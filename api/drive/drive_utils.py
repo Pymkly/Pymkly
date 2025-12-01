@@ -160,3 +160,104 @@ def list_drive_files(folder_id: str = None, query: str = None, max_results: int 
         return ToolResponse(f"Erreur Google Drive API : {str(he)}")
     except Exception as e:
         return ToolResponse(f"Erreur lors de la liste des fichiers : {str(e)}")
+
+@tool
+def get_drive_storage_info(user_id: str = None) -> ToolResponse:
+    """
+    Récupère les informations de stockage Google Drive de l'utilisateur.
+    Retourne le quota total, l'espace utilisé, l'espace disponible, et le pourcentage d'utilisation.
+    - user_id : ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne.
+    """
+    if not user_id:
+        return ToolResponse("Erreur : user_id manquant.")
+    
+    try:
+        service = get_drive_service(user_id)
+        
+        # Récupérer les informations de stockage
+        about = service.about().get(fields='storageQuota,user').execute()
+        storage_quota = about.get('storageQuota', {})
+        user_info = about.get('user', {})
+        
+        # Extraire les valeurs
+        limit = storage_quota.get('limit')
+        usage = storage_quota.get('usage')
+        usage_in_drive = storage_quota.get('usageInDrive')
+        usage_in_drive_trash = storage_quota.get('usageInDriveTrash')
+        
+        # Formater les tailles en unités lisibles
+        def format_bytes(bytes_value):
+            """Convertit les bytes en unités lisibles (KB, MB, GB, TB)"""
+            if bytes_value is None:
+                return "N/A"
+            
+            bytes_value = int(bytes_value)
+            
+            # Google Drive renvoie parfois les valeurs en string
+            if isinstance(bytes_value, str):
+                bytes_value = int(bytes_value)
+            
+            if bytes_value == 0:
+                return "0 B"
+            
+            for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+                if bytes_value < 1024.0:
+                    if unit == 'B':
+                        return f"{bytes_value} {unit}"
+                    else:
+                        return f"{bytes_value:.2f} {unit}"
+                bytes_value /= 1024.0
+            
+            return f"{bytes_value:.2f} PB"
+        
+        # Calculer l'espace disponible
+        if limit and usage:
+            limit_int = int(limit) if isinstance(limit, str) else limit
+            usage_int = int(usage) if isinstance(usage, str) else usage
+            available = limit_int - usage_int
+            percentage = (usage_int / limit_int) * 100 if limit_int > 0 else 0
+        else:
+            available = None
+            percentage = None
+        
+        # Construire le message de réponse
+        result_lines = ["📊 Informations de stockage Google Drive\n"]
+        
+        if user_info.get('emailAddress'):
+            result_lines.append(f"Utilisateur : {user_info.get('emailAddress')}\n")
+        
+        result_lines.append("\n💾 Stockage :\n")
+        
+        if limit:
+            result_lines.append(f"  Quota total : {format_bytes(limit)}\n")
+        
+        if usage:
+            result_lines.append(f"  Espace utilisé : {format_bytes(usage)}\n")
+        
+        if usage_in_drive:
+            result_lines.append(f"  Utilisé dans Drive : {format_bytes(usage_in_drive)}\n")
+        
+        if usage_in_drive_trash:
+            result_lines.append(f"  Dans la corbeille : {format_bytes(usage_in_drive_trash)}\n")
+        
+        if available is not None:
+            result_lines.append(f"  Espace disponible : {format_bytes(available)}\n")
+        
+        if percentage is not None:
+            result_lines.append(f"  Pourcentage utilisé : {percentage:.2f}%\n")
+            
+            # Ajouter une barre de progression visuelle
+            bar_length = 30
+            filled = int(bar_length * percentage / 100)
+            bar = "█" * filled + "░" * (bar_length - filled)
+            result_lines.append(f"  [{bar}] {percentage:.1f}%\n")
+        
+        return ToolResponse("".join(result_lines))
+        
+    except HttpError as he:
+        error_details = str(he)
+        if "insufficient permissions" in error_details.lower() or "403" in error_details:
+            return ToolResponse(f"Erreur : Permissions insuffisantes pour accéder aux informations de stockage. {error_details}")
+        return ToolResponse(f"Erreur Google Drive API : {error_details}")
+    except Exception as e:
+        return ToolResponse(f"Erreur lors de la récupération des informations de stockage : {str(e)}")
