@@ -669,3 +669,229 @@ def update_drive_file_permission(file_id: str, permission_id: str = None, email:
         return ToolResponse(f"Erreur Google Drive API : {error_details}")
     except Exception as e:
         return ToolResponse(f"Erreur lors de la modification de la permission : {str(e)}")
+
+@tool
+def download_drive_file(file_id: str, download_path: str = None, export_format: str = None, user_id: str = None) -> ToolResponse:
+    """
+    Télécharge un fichier ou dossier depuis Google Drive.
+    
+    INSTRUCTIONS D'UTILISATION :
+    1. Obtenez le file_id du fichier à télécharger
+    2. Pour les fichiers Google Docs (Docs, Sheets, Slides), spécifiez export_format (ex: "pdf", "docx", "xlsx", "pptx")
+    3. Si download_path n'est pas fourni, le fichier sera téléchargé dans le dossier de téléchargement par défaut du système
+    
+    TYPES DE FICHIERS :
+    - Fichiers normaux (PDF, images, etc.) : Téléchargement direct
+    - Google Docs : Nécessite export_format (pdf, docx, odt, rtf, txt, html, zip)
+    - Google Sheets : Nécessite export_format (xlsx, ods, pdf, csv, tsv, html)
+    - Google Slides : Nécessite export_format (pptx, odp, pdf, txt, jpg, png, svg)
+    
+    - file_id : ID du fichier à télécharger
+    - download_path : Chemin local où sauvegarder le fichier (optionnel, défaut: dossier de téléchargement système)
+    - export_format : Format d'export pour les fichiers Google Docs (optionnel, défaut: format original)
+    - user_id : ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne.
+    """
+    import os
+    import io
+    from pathlib import Path
+    
+    if not user_id:
+        return ToolResponse("Erreur : user_id manquant.")
+    if not file_id:
+        return ToolResponse("Erreur : file_id manquant.")
+    
+    try:
+        service = get_drive_service(user_id)
+        
+        # Récupérer les informations du fichier
+        file_info = service.files().get(fileId=file_id, fields='name, mimeType, size').execute()
+        file_name = file_info.get('name', 'Fichier')
+        mime_type = file_info.get('mimeType', '')
+        
+        # Déterminer si c'est un fichier Google Docs
+        is_google_doc = 'application/vnd.google-apps' in mime_type
+        
+        # Si c'est un Google Doc et qu'aucun format d'export n'est spécifié, suggérer un format
+        if is_google_doc and not export_format:
+            if 'document' in mime_type:
+                export_format = 'pdf'  # Format par défaut pour Google Docs
+            elif 'spreadsheet' in mime_type:
+                export_format = 'xlsx'  # Format par défaut pour Google Sheets
+            elif 'presentation' in mime_type:
+                export_format = 'pptx'  # Format par défaut pour Google Slides
+            else:
+                export_format = 'pdf'  # Format par défaut générique
+        
+        # Mapper les formats d'export pour Google Docs
+        export_mime_types = {
+            'pdf': 'application/pdf',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'odt': 'application/vnd.oasis.opendocument.text',
+            'rtf': 'application/rtf',
+            'txt': 'text/plain',
+            'html': 'text/html',
+            'zip': 'application/zip',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ods': 'application/vnd.oasis.opendocument.spreadsheet',
+            'csv': 'text/csv',
+            'tsv': 'text/tab-separated-values',
+            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'odp': 'application/vnd.oasis.opendocument.presentation',
+            'jpg': 'image/jpeg',
+            'png': 'image/png',
+            'svg': 'image/svg+xml'
+        }
+        
+        # Télécharger le fichier
+        if is_google_doc:
+            # Export pour les fichiers Google Docs
+            export_mime = export_mime_types.get(export_format.lower())
+            if not export_mime:
+                return ToolResponse(f"Erreur : Format d'export '{export_format}' non supporté pour ce type de fichier.")
+            
+            request = service.files().export_media(fileId=file_id, mimeType=export_mime)
+            file_content = request.execute()
+            
+            # Déterminer le nom du fichier avec l'extension
+            if not download_path:
+                base_name = os.path.splitext(file_name)[0]
+                file_name_with_ext = f"{base_name}.{export_format}"
+            else:
+                file_name_with_ext = os.path.basename(download_path) if os.path.dirname(download_path) else download_path
+        else:
+            # Téléchargement direct pour les fichiers normaux
+            request = service.files().get_media(fileId=file_id)
+            file_content = request.execute()
+            
+            # Déterminer le nom du fichier
+            if not download_path:
+                file_name_with_ext = file_name
+            else:
+                file_name_with_ext = os.path.basename(download_path) if os.path.dirname(download_path) else download_path
+        
+        # Obtenir le dossier de téléchargement par défaut du système
+        if not download_path or not os.path.dirname(download_path):
+            # Détecter le dossier Downloads par défaut
+            home = Path.home()
+            if os.name == 'nt':  # Windows
+                downloads_dir = home / 'Downloads'
+            else:  # Linux/Mac
+                downloads_dir = home / 'Downloads'
+            
+            # Si le dossier Downloads n'existe pas, essayer d'autres emplacements
+            if not downloads_dir.exists():
+                # Sur Windows, vérifier la variable d'environnement
+                if os.name == 'nt':
+                    user_profile = os.environ.get('USERPROFILE', str(home))
+                    downloads_dir = Path(user_profile) / 'Downloads'
+                    if not downloads_dir.exists():
+                        # Fallback : créer le dossier Downloads dans le home
+                        downloads_dir = home / 'Downloads'
+                        downloads_dir.mkdir(exist_ok=True)
+                else:
+                    # Sur Linux/Mac, créer le dossier s'il n'existe pas
+                    downloads_dir.mkdir(exist_ok=True)
+            
+            # Construire le chemin complet
+            download_path = downloads_dir / file_name_with_ext
+        else:
+            # Si un chemin complet est fourni, l'utiliser tel quel
+            download_path = Path(download_path)
+        
+        # S'assurer que le répertoire parent existe
+        download_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Gérer les fichiers en double (ajouter un numéro si nécessaire)
+        original_path = download_path
+        counter = 1
+        while download_path.exists():
+            stem = original_path.stem
+            suffix = original_path.suffix
+            download_path = original_path.parent / f"{stem} ({counter}){suffix}"
+            counter += 1
+        
+        # Sauvegarder le fichier
+        with open(download_path, 'wb') as f:
+            f.write(file_content)
+        
+        file_size = len(file_content)
+        size_str = f"{file_size / 1024:.2f} KB" if file_size < 1024*1024 else f"{file_size / (1024*1024):.2f} MB"
+        
+        export_info = f" (exporté en {export_format.upper()})" if is_google_doc else ""
+        
+        return ToolResponse(f"Fichier téléchargé avec succès !\n"
+                          f"  Nom : {file_name}\n"
+                          f"  File ID : {file_id}\n"
+                          f"  Chemin : {download_path}\n"
+                          f"  Taille : {size_str}{export_info}")
+        
+    except HttpError as he:
+        error_details = str(he)
+        if "insufficientFilePermissions" in error_details or "403" in error_details:
+            return ToolResponse(f"Erreur : Permissions insuffisantes pour télécharger ce fichier. {error_details}")
+        elif "notFound" in error_details.lower() or "404" in error_details:
+            return ToolResponse(f"Erreur : Fichier non trouvé (file_id: {file_id}). {error_details}")
+        elif "exportNotSupported" in error_details.lower():
+            return ToolResponse(f"Erreur : Format d'export '{export_format}' non supporté pour ce type de fichier. {error_details}")
+        return ToolResponse(f"Erreur Google Drive API : {error_details}")
+    except Exception as e:
+        return ToolResponse(f"Erreur lors du téléchargement du fichier : {str(e)}")
+
+@tool
+def rename_drive_file(file_id: str, new_name: str, user_id: str = None) -> ToolResponse:
+    """
+    Renomme un fichier ou dossier dans Google Drive.
+    
+    INSTRUCTIONS D'UTILISATION :
+    1. Obtenez le file_id du fichier à renommer
+    2. Spécifiez le nouveau nom (avec ou sans extension)
+    3. Le fichier sera renommé immédiatement
+    
+    NOTES :
+    - Vous devez avoir les permissions d'édition sur le fichier pour le renommer
+    - Le nouveau nom peut inclure l'extension de fichier
+    - Si le nouveau nom existe déjà dans le même dossier, Google Drive ajoutera un numéro
+    
+    - file_id : ID du fichier/dossier à renommer
+    - new_name : Nouveau nom du fichier (peut inclure l'extension)
+    - user_id : ID de l'utilisateur connecté, ne peut pas, en aucun cas, être remplacé par un uuid que l'utilisateur donne.
+    """
+    if not user_id:
+        return ToolResponse("Erreur : user_id manquant.")
+    if not file_id:
+        return ToolResponse("Erreur : file_id manquant.")
+    if not new_name or not new_name.strip():
+        return ToolResponse("Erreur : new_name ne peut pas être vide.")
+    
+    try:
+        service = get_drive_service(user_id)
+        
+        # Récupérer l'ancien nom du fichier
+        file_info_before = service.files().get(fileId=file_id, fields='name, mimeType').execute()
+        old_name = file_info_before.get('name', 'Fichier')
+        
+        # Mettre à jour le nom
+        updated_file = service.files().update(
+            fileId=file_id,
+            body={'name': new_name.strip()},
+            fields='id, name'
+        ).execute()
+        
+        new_name_final = updated_file.get('name', new_name.strip())
+        
+        file_type = "Dossier" if file_info_before.get('mimeType') == 'application/vnd.google-apps.folder' else "Fichier"
+        
+        return ToolResponse(f"{file_type} renommé avec succès !\n"
+                          f"  File ID : {file_id}\n"
+                          f"  Ancien nom : {old_name}\n"
+                          f"  Nouveau nom : {new_name_final}")
+        
+    except HttpError as he:
+        error_details = str(he)
+        if "insufficientFilePermissions" in error_details or "403" in error_details:
+            return ToolResponse(f"Erreur : Permissions insuffisantes pour renommer ce fichier. Vous devez être propriétaire ou avoir les droits d'édition. {error_details}")
+        elif "notFound" in error_details.lower() or "404" in error_details:
+            return ToolResponse(f"Erreur : Fichier non trouvé (file_id: {file_id}). {error_details}")
+        return ToolResponse(f"Erreur Google Drive API : {error_details}")
+    except Exception as e:
+        return ToolResponse(f"Erreur lors du renommage du fichier : {str(e)}")
