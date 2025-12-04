@@ -29,7 +29,8 @@ CREATE TABLE user_credentials (
     cred_type_id UUID,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_uuid) REFERENCES users(uuid) ON DELETE CASCADE,
-    FOREIGN KEY (cred_type_id) REFERENCES CredType(uuid) ON DELETE CASCADE
+    FOREIGN KEY (cred_type_id) REFERENCES CredType(uuid) ON DELETE CASCADE,
+    UNIQUE(user_uuid, cred_type_id)
 );
 
 -- Table type_contact

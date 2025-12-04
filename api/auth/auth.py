@@ -138,8 +138,15 @@ L’équipe Tsisy.com""")
 def add_credentials(state, refresh_token, cred_id):
     cursor = db.cursor()
     cursor.execute(
-        "INSERT INTO user_credentials (uuid, user_uuid, refresh_token, cred_type_id) VALUES (%s, %s, %s, %s)",
-        (str(uuid.uuid4()), state, refresh_token, cred_id)
+        """
+        INSERT INTO user_credentials (uuid, user_uuid, refresh_token, cred_type_id)
+        VALUES (uuid_generate_v4(), %s, %s, %s)
+        ON CONFLICT (user_uuid, cred_type_id)
+        DO UPDATE SET 
+            refresh_token = EXCLUDED.refresh_token,
+            created_at = CURRENT_TIMESTAMP
+        """,
+        (state, refresh_token, cred_id)
     )
     db.commit()
 
